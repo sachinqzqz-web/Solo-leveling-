@@ -509,10 +509,10 @@ if (url.pathname === "/click-480p") {
     const target = url.searchParams.get("url");
 
     if (!target) {
-      return Response.json({
-        ok: false,
-        error: "Missing url parameter"
-      }, { status: 400 });
+      return Response.json(
+        { ok: false, error: "Missing url parameter" },
+        { status: 400 }
+      );
     }
 
     browser = await puppeteer.launch(env.BROWSER);
@@ -528,6 +528,7 @@ if (url.pathname === "/click-480p") {
 
     const pagesBefore = await browser.pages();
 
+    // 480p option click
     const clicked = await page.evaluate(() => {
       const elements = [
         ...document.querySelectorAll("a, button")
@@ -538,23 +539,88 @@ if (url.pathname === "/click-480p") {
         return /^480p\b/i.test(text);
       });
 
-      if (!element) {
-        return false;
-      }
+      if (!element) return false;
 
       element.click();
       return true;
     });
 
     if (!clicked) {
-      await page.close();
+      await browser.close();
 
       return Response.json({
         ok: false,
-        clicked: false,
-        error: "480p option not found"
+        error: "480p button not found"
       });
     }
+
+    // New tab / mediator bridge ke liye wait
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    const pagesAfter = await browser.pages();
+
+    const newPages = pagesAfter.filter(
+      p => !pagesBefore.includes(p)
+    );
+
+    if (!newPages.length) {
+      await browser.close();
+
+      return Response.json({
+        ok: false,
+        clicked: true,
+        newPageOpened: false,
+        error: "Mediator page not detected"
+      });
+    }
+
+    const mediator = newPages[newPages.length - 1];
+
+    // Mediator page ko load hone ka thoda time
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    const timerInfo = await mediator.evaluate(() => {
+      const timer = document.querySelector("#timer");
+      const countdown = document.querySelector("#countdown");
+      const status = document.querySelector("#status_msg");
+
+      return {
+        timerExists: !!timer,
+        timerText: timer?.textContent?.trim() || null,
+
+        countdownExists: !!countdown,
+
+        countdownHidden:
+          countdown?.classList.contains("hidden") ?? null,
+
+        statusText:
+          status?.textContent?.trim() || null,
+
+        url: location.href,
+        title: document.title
+      };
+    });
+
+    await browser.close();
+
+    return Response.json({
+      ok: true,
+      clicked: true,
+      newPageOpened: true,
+      mediator: timerInfo
+    });
+
+  } catch (error) {
+    try {
+      if (browser) await browser.close();
+    } catch {}
+
+    return Response.json({
+      ok: false,
+      error: error.message
+    }, { status: 500 });
+  }
+}
 
     // New tab/page ke liye wait
     await new Promise(resolve => setTimeout(resolve, 3000));
