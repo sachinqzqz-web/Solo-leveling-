@@ -239,91 +239,114 @@ export default {
     // =========================
     // CLICK 480P
     // =========================
-    if (url.pathname === "/click-480p") {
-      let browser;
+    // =========================
+// CLICK 480P + DETECT NEW TAB
+// =========================
+if (url.pathname === "/click-480p") {
+  let browser;
 
-      try {
-        const target = url.searchParams.get("url");
+  try {
+    const target = url.searchParams.get("url");
 
-        if (!target) {
-          return Response.json({
-            ok: false,
-            error: "Missing url parameter"
-          }, { status: 400 });
-        }
-
-        browser = await puppeteer.launch(env.BROWSER);
-
-        const page = await browser.newPage();
-
-        await page.goto(target, {
-          waitUntil: "domcontentloaded",
-          timeout: 30000
-        });
-
-        await new Promise(resolve => setTimeout(resolve, 1500));
-
-        const beforeUrl = page.url();
-
-        const clicked = await page.evaluate(() => {
-          const elements = [
-            ...document.querySelectorAll("a, button")
-          ];
-
-          const element = elements.find(el => {
-            const text = (el.innerText || "").trim();
-            return /^480p\b/i.test(text);
-          });
-
-          if (!element) {
-            return false;
-          }
-
-          element.click();
-          return true;
-        });
-
-        if (!clicked) {
-          await page.close();
-
-          return Response.json({
-            ok: false,
-            clicked: false,
-            error: "480p option not found"
-          });
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 3000));
-
-        const afterUrl = page.url();
-        const title = await page.title();
-
-        await page.close();
-
-        return Response.json({
-          ok: true,
-          clicked: true,
-          beforeUrl,
-          afterUrl,
-          title,
-          navigated: beforeUrl !== afterUrl
-        });
-
-      } catch (error) {
-        return Response.json({
-          ok: false,
-          error: error.message
-        }, { status: 500 });
-
-      } finally {
-        if (browser) {
-          try {
-            await browser.close();
-          } catch {}
-        }
-      }
+    if (!target) {
+      return Response.json({
+        ok: false,
+        error: "Missing url parameter"
+      }, { status: 400 });
     }
 
+    browser = await puppeteer.launch(env.BROWSER);
+
+    const page = await browser.newPage();
+
+    await page.goto(target, {
+      waitUntil: "domcontentloaded",
+      timeout: 30000
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    const pagesBefore = await browser.pages();
+
+    const clicked = await page.evaluate(() => {
+      const elements = [
+        ...document.querySelectorAll("a, button")
+      ];
+
+      const element = elements.find(el => {
+        const text = (el.innerText || "").trim();
+        return /^480p\b/i.test(text);
+      });
+
+      if (!element) {
+        return false;
+      }
+
+      element.click();
+      return true;
+    });
+
+    if (!clicked) {
+      await page.close();
+
+      return Response.json({
+        ok: false,
+        clicked: false,
+        error: "480p option not found"
+      });
+    }
+
+    // New tab/page ke liye wait
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    const pagesAfter = await browser.pages();
+
+    const newPages = pagesAfter.filter(
+      p => !pagesBefore.includes(p)
+    );
+
+    let result = {
+      clicked: true,
+      newPageOpened: newPages.length > 0,
+      pagesFound: pagesAfter.length
+    };
+
+    if (newPages.length > 0) {
+      const newPage = newPages[newPages.length - 1];
+
+      try {
+        await newPage.waitForLoadState?.("domcontentloaded");
+      } catch {}
+
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      result.newPage = {
+        url: newPage.url(),
+        title: await newPage.title()
+      };
+    }
+
+    await page.close();
+
+    return Response.json({
+      ok: true,
+      ...result
+    });
+
+  } catch (error) {
+    return Response.json({
+      ok: false,
+      error: error.message
+    }, { status: 500 });
+
+  } finally {
+    if (browser) {
+      try {
+        await browser.close();
+      } catch {}
+    }
+  }
+}
     // =========================
     // 404
     // =========================
