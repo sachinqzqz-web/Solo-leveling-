@@ -120,7 +120,7 @@ export default {
 
         await searchBox.fill(query);
 
-        await page.locator("button").first().click();
+        await page.locator("button").click();
 
         await new Promise(resolve => setTimeout(resolve, 1500));
 
