@@ -155,7 +155,61 @@ export default {
         }
       }
     }
+if (url.pathname === "/open-result") {
+  let browser;
 
+  try {
+    const target = url.searchParams.get("url");
+
+    if (!target) {
+      return Response.json({
+        ok: false,
+        error: "Missing url parameter"
+      }, { status: 400 });
+    }
+
+    browser = await puppeteer.launch(env.BROWSER);
+
+    const page = await browser.newPage();
+
+    await page.goto(target, {
+      waitUntil: "domcontentloaded",
+      timeout: 30000
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    const options = await page.evaluate(() => {
+      return [...document.querySelectorAll("a, button")]
+        .map(el => ({
+          text: (el.innerText || "").trim(),
+          href: el.href || null
+        }))
+        .filter(x => /480p/i.test(x.text));
+    });
+
+    await page.close();
+
+    return Response.json({
+      ok: true,
+      url: target,
+      options
+    });
+
+  } catch (error) {
+    return Response.json({
+      ok: false,
+      error: error.message
+    }, { status: 500 });
+
+  } finally {
+    if (browser) {
+      try {
+        await browser.close();
+      } catch {}
+    }
+  }
+}
     return Response.json({
       ok: false,
       error: "Endpoint not found"
