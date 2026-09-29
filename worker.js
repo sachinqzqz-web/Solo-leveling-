@@ -4,6 +4,9 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    // =========================
+    // HEALTH CHECK
+    // =========================
     if (url.pathname === "/") {
       return Response.json({
         ok: true,
@@ -12,6 +15,9 @@ export default {
       });
     }
 
+    // =========================
+    // TEST BROWSER
+    // =========================
     if (url.pathname === "/test-browser") {
       let browser;
 
@@ -51,6 +57,9 @@ export default {
       }
     }
 
+    // =========================
+    // TEST PAGE
+    // =========================
     if (url.pathname === "/test-page") {
       let browser;
 
@@ -65,6 +74,7 @@ export default {
 
         const data = await page.evaluate(() => ({
           heading: document.querySelector("h1")?.innerText || null,
+
           links: [...document.querySelectorAll("a")].map(a => ({
             text: a.innerText.trim(),
             href: a.href
@@ -93,6 +103,9 @@ export default {
       }
     }
 
+    // =========================
+    // SEARCH
+    // =========================
     if (url.pathname === "/search") {
       let browser;
 
@@ -155,61 +168,165 @@ export default {
         }
       }
     }
-if (url.pathname === "/open-result") {
-  let browser;
 
-  try {
-    const target = url.searchParams.get("url");
+    // =========================
+    // OPEN RESULT
+    // =========================
+    if (url.pathname === "/open-result") {
+      let browser;
 
-    if (!target) {
-      return Response.json({
-        ok: false,
-        error: "Missing url parameter"
-      }, { status: 400 });
-    }
-
-    browser = await puppeteer.launch(env.BROWSER);
-
-    const page = await browser.newPage();
-
-    await page.goto(target, {
-      waitUntil: "domcontentloaded",
-      timeout: 30000
-    });
-
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
-    const options = await page.evaluate(() => {
-      return [...document.querySelectorAll("a, button")]
-        .map(el => ({
-          text: (el.innerText || "").trim(),
-          href: el.href || null
-        }))
-        .filter(x => /480p/i.test(x.text));
-    });
-
-    await page.close();
-
-    return Response.json({
-      ok: true,
-      url: target,
-      options
-    });
-
-  } catch (error) {
-    return Response.json({
-      ok: false,
-      error: error.message
-    }, { status: 500 });
-
-  } finally {
-    if (browser) {
       try {
-        await browser.close();
-      } catch {}
+        const target = url.searchParams.get("url");
+
+        if (!target) {
+          return Response.json({
+            ok: false,
+            error: "Missing url parameter"
+          }, { status: 400 });
+        }
+
+        browser = await puppeteer.launch(env.BROWSER);
+
+        const page = await browser.newPage();
+
+        await page.goto(target, {
+          waitUntil: "domcontentloaded",
+          timeout: 30000
+        });
+
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        const pageInfo = await page.evaluate(() => {
+          const elements = [...document.querySelectorAll("a, button")];
+
+          const matches = elements
+            .map(el => ({
+              text: (el.innerText || "").trim(),
+              tag: el.tagName
+            }))
+            .filter(x => /^480p\b/i.test(x.text));
+
+          return {
+            title: document.title,
+            url: location.href,
+            has480p: matches.length > 0,
+            options: matches
+          };
+        });
+
+        await page.close();
+
+        return Response.json({
+          ok: true,
+          ...pageInfo
+        });
+
+      } catch (error) {
+        return Response.json({
+          ok: false,
+          error: error.message
+        }, { status: 500 });
+
+      } finally {
+        if (browser) {
+          try {
+            await browser.close();
+          } catch {}
+        }
+      }
     }
-  }
-}
+
+    // =========================
+    // CLICK 480P
+    // =========================
+    if (url.pathname === "/click-480p") {
+      let browser;
+
+      try {
+        const target = url.searchParams.get("url");
+
+        if (!target) {
+          return Response.json({
+            ok: false,
+            error: "Missing url parameter"
+          }, { status: 400 });
+        }
+
+        browser = await puppeteer.launch(env.BROWSER);
+
+        const page = await browser.newPage();
+
+        await page.goto(target, {
+          waitUntil: "domcontentloaded",
+          timeout: 30000
+        });
+
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        const beforeUrl = page.url();
+
+        const clicked = await page.evaluate(() => {
+          const elements = [
+            ...document.querySelectorAll("a, button")
+          ];
+
+          const element = elements.find(el => {
+            const text = (el.innerText || "").trim();
+            return /^480p\b/i.test(text);
+          });
+
+          if (!element) {
+            return false;
+          }
+
+          element.click();
+          return true;
+        });
+
+        if (!clicked) {
+          await page.close();
+
+          return Response.json({
+            ok: false,
+            clicked: false,
+            error: "480p option not found"
+          });
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 3000));
+
+        const afterUrl = page.url();
+        const title = await page.title();
+
+        await page.close();
+
+        return Response.json({
+          ok: true,
+          clicked: true,
+          beforeUrl,
+          afterUrl,
+          title,
+          navigated: beforeUrl !== afterUrl
+        });
+
+      } catch (error) {
+        return Response.json({
+          ok: false,
+          error: error.message
+        }, { status: 500 });
+
+      } finally {
+        if (browser) {
+          try {
+            await browser.close();
+          } catch {}
+        }
+      }
+    }
+
+    // =========================
+    // 404
+    // =========================
     return Response.json({
       ok: false,
       error: "Endpoint not found"
