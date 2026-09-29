@@ -237,8 +237,8 @@ export default {
     }
 
     // =========================
- // =========================
-// WATCH TIMER
+ /// =========================
+// WATCH TIMER - FOCUSED
 // =========================
 if (url.pathname === "/watch-timer") {
   let browser;
@@ -264,39 +264,60 @@ if (url.pathname === "/watch-timer") {
 
     const snapshots = [];
 
-    // 12 seconds tak page ko observe karo
     for (let i = 0; i < 13; i++) {
-      const snapshot = await page.evaluate(() => {
-        const visible = [...document.querySelectorAll("body *")]
-          .filter(el => {
-            const style = getComputedStyle(el);
-            const rect = el.getBoundingClientRect();
 
-            return (
-              style.display !== "none" &&
-              style.visibility !== "hidden" &&
-              rect.width > 0 &&
-              rect.height > 0
-            );
-          })
-          .map(el => ({
-            tag: el.tagName,
-            id: el.id || null,
-            className: typeof el.className === "string"
-              ? el.className
-              : null,
-            text: (el.innerText || "").trim()
-          }))
-          .filter(x =>
-            x.text &&
-            /wait|second|sec|continue|countdown|timer|please/i.test(x.text)
-          )
-          .slice(0, 20);
+      const snapshot = await page.evaluate(() => {
+
+        const results = [];
+
+        for (const el of document.querySelectorAll(
+          "button, a, input, span, div, p, h1, h2, h3"
+        )) {
+
+          const style = getComputedStyle(el);
+          const rect = el.getBoundingClientRect();
+          const text = (el.innerText || el.textContent || "")
+            .replace(/\s+/g, " ")
+            .trim();
+
+          if (
+            !text ||
+            text.length > 120 ||
+            style.display === "none" ||
+            style.visibility === "hidden" ||
+            rect.width === 0 ||
+            rect.height === 0
+          ) {
+            continue;
+          }
+
+          const combined = [
+            text,
+            el.id || "",
+            typeof el.className === "string" ? el.className : ""
+          ].join(" ");
+
+          if (
+            /wait|please wait|second|seconds|sec|countdown|timer|continue|processing|loading/i.test(
+              combined
+            )
+          ) {
+            results.push({
+              tag: el.tagName,
+              id: el.id || null,
+              className:
+                typeof el.className === "string"
+                  ? el.className
+                  : null,
+              text
+            });
+          }
+        }
 
         return {
           url: location.href,
           title: document.title,
-          elements: visible
+          elements: results.slice(0, 30)
         };
       });
 
@@ -316,19 +337,21 @@ if (url.pathname === "/watch-timer") {
     });
 
   } catch (error) {
+
     return Response.json({
       ok: false,
       error: error.message
     }, { status: 500 });
 
   } finally {
+
     if (browser) {
       try {
         await browser.close();
       } catch {}
     }
   }
-} // =========================
+}// =========================
 // INSPECT TIMER JS
 // =========================
 if (url.pathname === "/inspect-timer") {
