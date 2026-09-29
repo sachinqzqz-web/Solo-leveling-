@@ -237,7 +237,78 @@ export default {
     }
 
     // =========================
-    // CLICK 480P
+  // =========================
+// CHECK NEW PAGE STATE
+// =========================
+if (url.pathname === "/check-new-page") {
+  let browser;
+
+  try {
+    const target = url.searchParams.get("url");
+
+    if (!target) {
+      return Response.json({
+        ok: false,
+        error: "Missing url parameter"
+      }, { status: 400 });
+    }
+
+    browser = await puppeteer.launch(env.BROWSER);
+
+    const page = await browser.newPage();
+
+    await page.goto(target, {
+      waitUntil: "domcontentloaded",
+      timeout: 30000
+    });
+
+    // Page ko thoda time do JS/content load karne ka
+    await new Promise(resolve => setTimeout(resolve, 5000));
+
+    const state = await page.evaluate(() => {
+      return {
+        url: location.href,
+        title: document.title,
+        bodyText: (document.body?.innerText || "")
+          .trim()
+          .slice(0, 3000),
+
+        buttons: [...document.querySelectorAll("button")]
+          .map(el => (el.innerText || "").trim())
+          .filter(Boolean)
+          .slice(0, 30),
+
+        links: [...document.querySelectorAll("a")]
+          .map(el => ({
+            text: (el.innerText || "").trim(),
+            href: el.href
+          }))
+          .filter(x => x.text)
+          .slice(0, 30)
+      };
+    });
+
+    await page.close();
+
+    return Response.json({
+      ok: true,
+      state
+    });
+
+  } catch (error) {
+    return Response.json({
+      ok: false,
+      error: error.message
+    }, { status: 500 });
+
+  } finally {
+    if (browser) {
+      try {
+        await browser.close();
+      } catch {}
+    }
+  }
+}
     // =========================
     // =========================
 // CLICK 480P + DETECT NEW TAB
