@@ -263,7 +263,7 @@ if (url.pathname === "/check-new-page") {
     });
 
     // Page ko thoda time do JS/content load karne ka
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    await new Promise(resolve => setTimeout(resolve, 10000));
 
     const state = await page.evaluate(() => {
       return {
