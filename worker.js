@@ -50,7 +50,47 @@ export default {
         }
       }
     }
+if (url.pathname === "/test-page") {
+  let browser;
 
+  try {
+    browser = await puppeteer.launch(env.BROWSER);
+
+    const page = await browser.newPage();
+
+    await page.goto("https://example.com", {
+      waitUntil: "domcontentloaded"
+    });
+
+    const data = await page.evaluate(() => ({
+      heading: document.querySelector("h1")?.innerText || null,
+      links: [...document.querySelectorAll("a")].map(a => ({
+        text: a.innerText.trim(),
+        href: a.href
+      }))
+    }));
+
+    await page.close();
+
+    return Response.json({
+      ok: true,
+      data
+    });
+
+  } catch (error) {
+    return Response.json({
+      ok: false,
+      error: error.message
+    }, { status: 500 });
+
+  } finally {
+    if (browser) {
+      try {
+        await browser.close();
+      } catch {}
+    }
+  }
+}
     return Response.json({
       ok: false,
       error: "Endpoint not found"
