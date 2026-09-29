@@ -238,6 +238,81 @@ export default {
 
     // =========================
   // =========================
+// INSPECT TIMER JS
+// =========================
+if (url.pathname === "/inspect-timer") {
+  let browser;
+
+  try {
+    const target = url.searchParams.get("url");
+
+    if (!target) {
+      return Response.json({
+        ok: false,
+        error: "Missing url parameter"
+      }, { status: 400 });
+    }
+
+    browser = await puppeteer.launch(env.BROWSER);
+
+    const page = await browser.newPage();
+
+    await page.goto(target, {
+      waitUntil: "domcontentloaded",
+      timeout: 30000
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    const scripts = await page.evaluate(() => {
+      return [...document.scripts].map((script, index) => ({
+        index,
+        src: script.src || null,
+        inline: script.src
+          ? null
+          : (script.textContent || "").slice(0, 5000)
+      }));
+    });
+
+    const timerElements = await page.evaluate(() => {
+      return [...document.querySelectorAll("*")]
+        .filter(el => {
+          const text = (el.innerText || "").trim();
+          return /please\s*wait|seconds?|countdown|continue/i.test(text);
+        })
+        .slice(0, 30)
+        .map(el => ({
+          tag: el.tagName,
+          id: el.id || null,
+          className: typeof el.className === "string"
+            ? el.className
+            : null,
+          text: (el.innerText || "").trim().slice(0, 500)
+        }));
+    });
+
+    await page.close();
+
+    return Response.json({
+      ok: true,
+      scripts,
+      timerElements
+    });
+
+  } catch (error) {
+    return Response.json({
+      ok: false,
+      error: error.message
+    }, { status: 500 });
+
+  } finally {
+    if (browser) {
+      try {
+        await browser.close();
+      } catch {}
+    }
+  }
+}// =========================
 // CHECK NEW PAGE STATE
 // =========================
 if (url.pathname === "/check-new-page") {
@@ -263,7 +338,7 @@ if (url.pathname === "/check-new-page") {
     });
 
     // Page ko thoda time do JS/content load karne ka
-    await new Promise(resolve => setTimeout(resolve, 10000));
+    await new Promise(resolve => setTimeout(resolve, 15000));
 
     const state = await page.evaluate(() => {
       return {
