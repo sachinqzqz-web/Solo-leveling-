@@ -237,7 +237,98 @@ export default {
     }
 
     // =========================
-  // =========================
+ // =========================
+// WATCH TIMER
+// =========================
+if (url.pathname === "/watch-timer") {
+  let browser;
+
+  try {
+    const target = url.searchParams.get("url");
+
+    if (!target) {
+      return Response.json({
+        ok: false,
+        error: "Missing url parameter"
+      }, { status: 400 });
+    }
+
+    browser = await puppeteer.launch(env.BROWSER);
+
+    const page = await browser.newPage();
+
+    await page.goto(target, {
+      waitUntil: "domcontentloaded",
+      timeout: 30000
+    });
+
+    const snapshots = [];
+
+    // 12 seconds tak page ko observe karo
+    for (let i = 0; i < 13; i++) {
+      const snapshot = await page.evaluate(() => {
+        const visible = [...document.querySelectorAll("body *")]
+          .filter(el => {
+            const style = getComputedStyle(el);
+            const rect = el.getBoundingClientRect();
+
+            return (
+              style.display !== "none" &&
+              style.visibility !== "hidden" &&
+              rect.width > 0 &&
+              rect.height > 0
+            );
+          })
+          .map(el => ({
+            tag: el.tagName,
+            id: el.id || null,
+            className: typeof el.className === "string"
+              ? el.className
+              : null,
+            text: (el.innerText || "").trim()
+          }))
+          .filter(x =>
+            x.text &&
+            /wait|second|sec|continue|countdown|timer|please/i.test(x.text)
+          )
+          .slice(0, 20);
+
+        return {
+          url: location.href,
+          title: document.title,
+          elements: visible
+        };
+      });
+
+      snapshots.push({
+        second: i,
+        ...snapshot
+      });
+
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    await page.close();
+
+    return Response.json({
+      ok: true,
+      snapshots
+    });
+
+  } catch (error) {
+    return Response.json({
+      ok: false,
+      error: error.message
+    }, { status: 500 });
+
+  } finally {
+    if (browser) {
+      try {
+        await browser.close();
+      } catch {}
+    }
+  }
+} // =========================
 // INSPECT TIMER JS
 // =========================
 if (url.pathname === "/inspect-timer") {
