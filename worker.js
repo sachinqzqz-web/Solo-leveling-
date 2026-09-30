@@ -1,12 +1,78 @@
 import puppeteer from "@cloudflare/puppeteer";
 
+const SEARCH_URL = "https://new1.hdhub4u.free/search.html";
+
+const sleep = (ms) =>
+  new Promise(resolve => setTimeout(resolve, ms));
+
+function normalize(text = "") {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function movieTokens(movie) {
+  return normalize(movie)
+    .split(" ")
+    .filter(x => x.length > 1);
+}
+
+async function findPageContaining(browser, regex) {
+  const pages = await browser.pages();
+
+  for (const page of pages) {
+    try {
+      const text = await page.evaluate(
+        () => document.body?.innerText || ""
+      );
+
+      if (regex.test(text)) {
+        return page;
+      }
+    } catch {}
+  }
+
+  return null;
+}
+
+async function clickText(page, regex) {
+  return await page.evaluate((pattern) => {
+    const re = new RegExp(pattern, "i");
+
+    const elements = [
+      ...document.querySelectorAll("a, button, input[type='button'], input[type='submit']")
+    ];
+
+    const el = elements.find(node => {
+      const text = (
+        node.innerText ||
+        node.textContent ||
+        node.value ||
+        ""
+      )
+        .replace(/\s+/g, " ")
+        .trim();
+
+      return re.test(text);
+    });
+
+    if (!el) return false;
+
+    el.click();
+    return true;
+  }, regex.source);
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
     // =========================
-    // HEALTH CHECK
+    // HOME
     // =========================
+
     if (url.pathname === "/") {
       return Response.json({
         ok: true,
@@ -16,669 +82,341 @@ export default {
     }
 
     // =========================
-    // TEST BROWSER
+    // MOVIE ROUTE
+    // /Toxic-2026
     // =========================
-    if (url.pathname === "/test-browser") {
-      let browser;
 
-      try {
-        browser = await puppeteer.launch(env.BROWSER);
+    const moviePath = decodeURIComponent(
+      url.pathname.replace(/^\/+|\/+$/g, "")
+    );
 
-        const page = await browser.newPage();
-
-        await page.goto("https://example.com", {
-          waitUntil: "domcontentloaded"
-        });
-
-        const title = await page.title();
-        const currentUrl = page.url();
-
-        await page.close();
-
-        return Response.json({
-          ok: true,
-          browser: "running",
-          title,
-          url: currentUrl
-        });
-
-      } catch (error) {
-        return Response.json({
-          ok: false,
-          error: error.message
-        }, { status: 500 });
-
-      } finally {
-        if (browser) {
-          try {
-            await browser.close();
-          } catch {}
-        }
-      }
+    if (!moviePath) {
+      return Response.json({
+        ok: false,
+        error: "Movie name missing"
+      }, { status: 400 });
     }
 
-    // =========================
-    // TEST PAGE
-    // =========================
-    if (url.pathname === "/test-page") {
-      let browser;
+    const movie = moviePath.replace(/[-_]+/g, " ").trim();
 
-      try {
-        browser = await puppeteer.launch(env.BROWSER);
+    let browser;
 
-        const page = await browser.newPage();
+    try {
+      browser = await puppeteer.launch(env.BROWSER);
 
-        await page.goto("https://example.com", {
-          waitUntil: "domcontentloaded"
-        });
+      // =========================
+      // 1. SEARCH PAGE
+      // =========================
 
-        const data = await page.evaluate(() => ({
-          heading: document.querySelector("h1")?.innerText || null,
+      const searchPage = await browser.newPage();
 
-          links: [...document.querySelectorAll("a")].map(a => ({
-            text: a.innerText.trim(),
-            href: a.href
+      await searchPage.goto(SEARCH_URL, {
+        waitUntil: "domcontentloaded",
+        timeout: 30000
+      });
+
+      await sleep(1000);
+
+      const searchBox = searchPage.locator(
+        'input[placeholder*="Search"]'
+      );
+
+      await searchBox.fill(movie);
+
+      // Search button
+      await searchPage.locator("button").click();
+
+      await sleep(1500);
+
+      // =========================
+      // 2. FIND MATCHING MOVIE
+      // =========================
+
+      const tokens = movieTokens(movie);
+
+      const results = await searchPage.evaluate(() => {
+        return [...document.querySelectorAll("a")]
+          .map(a => ({
+            title: (a.innerText || a.textContent || "")
+              .replace(/\s+/g, " ")
+              .trim(),
+
+            url: a.href
           }))
-        }));
+          .filter(x => x.title && x.url);
+      });
 
-        await page.close();
+      let matched = null;
 
-        return Response.json({
-          ok: true,
-          data
-        });
+      let bestScore = -1;
 
-      } catch (error) {
-        return Response.json({
-          ok: false,
-          error: error.message
-        }, { status: 500 });
+      for (const result of results) {
+        const title = normalize(result.title);
 
-      } finally {
-        if (browser) {
-          try {
-            await browser.close();
-          } catch {}
+        let score = 0;
+
+        for (const token of tokens) {
+          if (title.includes(token)) {
+            score++;
+          }
+        }
+
+        if (score > bestScore) {
+          bestScore = score;
+          matched = result;
         }
       }
-    }
 
-    // =========================
-    // SEARCH
-    // =========================
-    if (url.pathname === "/search") {
-      let browser;
+      if (!matched || bestScore <= 0) {
+        throw new Error(
+          `Movie not found: ${movie}`
+        );
+      }
 
-      try {
-        const query = url.searchParams.get("q");
+      // =========================
+      // 3. OPEN MOVIE
+      // =========================
 
-        if (!query) {
-          return Response.json({
-            ok: false,
-            error: "Missing q parameter"
-          }, { status: 400 });
-        }
+      await searchPage.goto(matched.url, {
+        waitUntil: "domcontentloaded",
+        timeout: 30000
+      });
 
-        browser = await puppeteer.launch(env.BROWSER);
+      await sleep(1500);
 
-        const page = await browser.newPage();
+      // =========================
+      // 4. CLICK 720P
+      // =========================
 
-        await page.goto("https://new1.hdhub4u.free/search.html", {
-          waitUntil: "domcontentloaded"
-        });
+      const pagesBefore720 = await browser.pages();
 
-        const searchBox = await page.locator(
-          'input[placeholder*="Search"]'
+      const clicked720 = await clickText(
+        searchPage,
+        /^720p\b/
+      );
+
+      if (!clicked720) {
+        throw new Error(
+          "720p option not found"
+        );
+      }
+
+      await sleep(3000);
+
+      const pagesAfter720 = await browser.pages();
+
+      let currentPage = searchPage;
+
+      const newPages720 = pagesAfter720.filter(
+        p => !pagesBefore720.includes(p)
+      );
+
+      if (newPages720.length) {
+        currentPage =
+          newPages720[newPages720.length - 1];
+      }
+
+      // =========================
+      // 5. FIND HUBCLOUD PAGE
+      // =========================
+
+      await sleep(2000);
+
+      let hubPage = await findPageContaining(
+        browser,
+        /HubCloud\s*Server/i
+      );
+
+      if (!hubPage) {
+        hubPage = currentPage;
+      }
+
+      // =========================
+      // 6. CLICK HUBCLOUD SERVER
+      // =========================
+
+      const clickedHubCloud = await clickText(
+        hubPage,
+        /HubCloud\s*Server/i
+      );
+
+      if (!clickedHubCloud) {
+        throw new Error(
+          "HubCloud Server option not found"
+        );
+      }
+
+      await sleep(2000);
+
+      // =========================
+      // 7. FIND GENERATE PAGE
+      // =========================
+
+      let generatePage = await findPageContaining(
+        browser,
+        /Generate\s*Direct\s*Download\s*Link/i
+      );
+
+      if (!generatePage) {
+        generatePage = hubPage;
+      }
+
+      // =========================
+      // 8. CLICK GENERATE
+      // =========================
+
+      const clickedGenerate = await clickText(
+        generatePage,
+        /Generate\s*Direct\s*Download\s*Link/i
+      );
+
+      if (!clickedGenerate) {
+        throw new Error(
+          "Generate Direct Download Link button not found"
+        );
+      }
+
+      await sleep(2500);
+
+      // =========================
+      // 9. DETECT SERVER OPTIONS
+      // =========================
+
+      const optionPage =
+        await findPageContaining(
+          browser,
+          /Download\s*\[(?:FSLv2|FSL|Server\s*:\s*10Gbps)/i
+        ) || generatePage;
+
+      const options = await optionPage.evaluate(() => {
+        const elements = [
+          ...document.querySelectorAll(
+            "a, button"
+          )
+        ];
+
+        return elements
+          .map(el => ({
+            text: (
+              el.innerText ||
+              el.textContent ||
+              ""
+            )
+              .replace(/\s+/g, " ")
+              .trim()
+          }))
+          .filter(x => x.text);
+      });
+
+      const hasFSLv2 = options.some(x =>
+        /^Download\s*\[\s*FSLv2\s*Server\s*\]$/i
+          .test(x.text)
+      );
+
+      const hasFSL = options.some(x =>
+        /^Download\s*\[\s*FSL\s*Server\s*\]$/i
+          .test(x.text)
+      );
+
+      const has10Gbps = options.some(x =>
+        /^Download\s*\[\s*Server\s*:\s*10Gbps\s*\]$/i
+          .test(x.text)
+      );
+
+      // =========================
+      // 10Gbps FALLBACK
+      // =========================
+
+      let selectedServer = null;
+      let downloadHereFound = false;
+
+      if (hasFSLv2) {
+        selectedServer = "FSLv2";
+      } else if (hasFSL) {
+        selectedServer = "FSL";
+      } else if (has10Gbps) {
+        selectedServer = "10Gbps";
+
+        const clicked10Gbps = await clickText(
+          optionPage,
+          /^Download\s*\[\s*Server\s*:\s*10Gbps\s*\]$/
         );
 
-        await searchBox.fill(query);
+        if (clicked10Gbps) {
+          await sleep(2000);
 
-        await page.locator("button").click();
+          const downloadPage =
+            await findPageContaining(
+              browser,
+              /^Download\s*Here$/im
+            );
 
-        await new Promise(resolve => setTimeout(resolve, 1500));
+          if (downloadPage) {
+            const bodyText =
+              await downloadPage.evaluate(
+                () => document.body?.innerText || ""
+              );
 
-        const results = await page.evaluate(() => {
-          return [...document.querySelectorAll("a")]
-            .map(a => ({
-              title: (a.innerText || "").trim(),
-              url: a.href
-            }))
-            .filter(x => x.title && x.url);
-        });
-
-        await page.close();
-
-        return Response.json({
-          ok: true,
-          query,
-          results
-        });
-
-      } catch (error) {
-        return Response.json({
-          ok: false,
-          error: error.message
-        }, { status: 500 });
-
-      } finally {
-        if (browser) {
-          try {
-            await browser.close();
-          } catch {}
-        }
-      }
-    }
-
-    // =========================
-    // OPEN RESULT
-    // =========================
-    if (url.pathname === "/open-result") {
-      let browser;
-
-      try {
-        const target = url.searchParams.get("url");
-
-        if (!target) {
-          return Response.json({
-            ok: false,
-            error: "Missing url parameter"
-          }, { status: 400 });
-        }
-
-        browser = await puppeteer.launch(env.BROWSER);
-
-        const page = await browser.newPage();
-
-        await page.goto(target, {
-          waitUntil: "domcontentloaded",
-          timeout: 30000
-        });
-
-        await new Promise(resolve => setTimeout(resolve, 1500));
-
-        const pageInfo = await page.evaluate(() => {
-          const elements = [...document.querySelectorAll("a, button")];
-
-          const matches = elements
-            .map(el => ({
-              text: (el.innerText || "").trim(),
-              tag: el.tagName
-            }))
-            .filter(x => /^480p\b/i.test(x.text));
-
-          return {
-            title: document.title,
-            url: location.href,
-            has480p: matches.length > 0,
-            options: matches
-          };
-        });
-
-        await page.close();
-
-        return Response.json({
-          ok: true,
-          ...pageInfo
-        });
-
-      } catch (error) {
-        return Response.json({
-          ok: false,
-          error: error.message
-        }, { status: 500 });
-
-      } finally {
-        if (browser) {
-          try {
-            await browser.close();
-          } catch {}
-        }
-      }
-    }
-
-    // =========================
- /// =========================
-// WATCH TIMER - FOCUSED
-// =========================
-if (url.pathname === "/watch-timer") {
-  let browser;
-
-  try {
-    const target = url.searchParams.get("url");
-
-    if (!target) {
-      return Response.json({
-        ok: false,
-        error: "Missing url parameter"
-      }, { status: 400 });
-    }
-
-    browser = await puppeteer.launch(env.BROWSER);
-
-    const page = await browser.newPage();
-
-    await page.goto(target, {
-      waitUntil: "domcontentloaded",
-      timeout: 30000
-    });
-
-    const snapshots = [];
-
-    for (let i = 0; i < 13; i++) {
-
-      const snapshot = await page.evaluate(() => {
-
-        const results = [];
-
-        for (const el of document.querySelectorAll(
-          "button, a, input, span, div, p, h1, h2, h3"
-        )) {
-
-          const style = getComputedStyle(el);
-          const rect = el.getBoundingClientRect();
-          const text = (el.innerText || el.textContent || "")
-            .replace(/\s+/g, " ")
-            .trim();
-
-          if (
-            !text ||
-            text.length > 120 ||
-            style.display === "none" ||
-            style.visibility === "hidden" ||
-            rect.width === 0 ||
-            rect.height === 0
-          ) {
-            continue;
-          }
-
-          const combined = [
-            text,
-            el.id || "",
-            typeof el.className === "string" ? el.className : ""
-          ].join(" ");
-
-          if (
-            /wait|please wait|second|seconds|sec|countdown|timer|continue|processing|loading/i.test(
-              combined
-            )
-          ) {
-            results.push({
-              tag: el.tagName,
-              id: el.id || null,
-              className:
-                typeof el.className === "string"
-                  ? el.className
-                  : null,
-              text
-            });
+            downloadHereFound =
+              /Download\s*Here/i.test(bodyText);
           }
         }
+      }
 
-        return {
-          url: location.href,
-          title: document.title,
-          elements: results.slice(0, 30)
-        };
-      });
+      // =========================
+      // RESULT
+      // =========================
 
-      snapshots.push({
-        second: i,
-        ...snapshot
-      });
-
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-
-    await page.close();
-
-    return Response.json({
-      ok: true,
-      snapshots
-    });
-
-  } catch (error) {
-
-    return Response.json({
-      ok: false,
-      error: error.message
-    }, { status: 500 });
-
-  } finally {
-
-    if (browser) {
-      try {
-        await browser.close();
-      } catch {}
-    }
-  }
-}// =========================
-// INSPECT TIMER JS
-// =========================
-if (url.pathname === "/inspect-timer") {
-  let browser;
-
-  try {
-    const target = url.searchParams.get("url");
-
-    if (!target) {
       return Response.json({
-        ok: false,
-        error: "Missing url parameter"
-      }, { status: 400 });
-    }
+        ok: true,
 
-    browser = await puppeteer.launch(env.BROWSER);
+        movie,
 
-    const page = await browser.newPage();
+        result: {
+          title: matched.title,
+          url: matched.url
+        },
 
-    await page.goto(target, {
-      waitUntil: "domcontentloaded",
-      timeout: 30000
-    });
+        flow: {
+          search: true,
+          quality: "720p",
+          hubCloudServer: clickedHubCloud,
+          generateDirectDownloadLink:
+            clickedGenerate
+        },
 
-    await new Promise(resolve => setTimeout(resolve, 2000));
+        servers: {
+          fslv2: hasFSLv2,
+          fsl: hasFSL,
+          server10Gbps: has10Gbps
+        },
 
-    const scripts = await page.evaluate(() => {
-      return [...document.scripts].map((script, index) => ({
-        index,
-        src: script.src || null,
-        inline: script.src
-          ? null
-          : (script.textContent || "").slice(0, 5000)
-      }));
-    });
+        selectedServer,
 
-    const timerElements = await page.evaluate(() => {
-      return [...document.querySelectorAll("*")]
-        .filter(el => {
-          const text = (el.innerText || "").trim();
-          return /please\s*wait|seconds?|countdown|continue/i.test(text);
-        })
-        .slice(0, 30)
-        .map(el => ({
-          tag: el.tagName,
-          id: el.id || null,
-          className: typeof el.className === "string"
-            ? el.className
-            : null,
-          text: (el.innerText || "").trim().slice(0, 500)
-        }));
-    });
+        downloadHereFound,
 
-    await page.close();
-
-    return Response.json({
-      ok: true,
-      scripts,
-      timerElements
-    });
-
-  } catch (error) {
-    return Response.json({
-      ok: false,
-      error: error.message
-    }, { status: 500 });
-
-  } finally {
-    if (browser) {
-      try {
-        await browser.close();
-      } catch {}
-    }
-  }
-}// =========================
-// CHECK NEW PAGE STATE
-// =========================
-if (url.pathname === "/check-new-page") {
-  let browser;
-
-  try {
-    const target = url.searchParams.get("url");
-
-    if (!target) {
-      return Response.json({
-        ok: false,
-        error: "Missing url parameter"
-      }, { status: 400 });
-    }
-
-    browser = await puppeteer.launch(env.BROWSER);
-
-    const page = await browser.newPage();
-
-    await page.goto(target, {
-      waitUntil: "domcontentloaded",
-      timeout: 30000
-    });
-
-    // Page ko thoda time do JS/content load karne ka
-    await new Promise(resolve => setTimeout(resolve, 15000));
-
-    const state = await page.evaluate(() => {
-      return {
-        url: location.href,
-        title: document.title,
-        bodyText: (document.body?.innerText || "")
-          .trim()
-          .slice(0, 3000),
-
-        buttons: [...document.querySelectorAll("button")]
-          .map(el => (el.innerText || "").trim())
-          .filter(Boolean)
-          .slice(0, 30),
-
-        links: [...document.querySelectorAll("a")]
-          .map(el => ({
-            text: (el.innerText || "").trim(),
-            href: el.href
-          }))
-          .filter(x => x.text)
-          .slice(0, 30)
-      };
-    });
-
-    await page.close();
-
-    return Response.json({
-      ok: true,
-      state
-    });
-
-  } catch (error) {
-    return Response.json({
-      ok: false,
-      error: error.message
-    }, { status: 500 });
-
-  } finally {
-    if (browser) {
-      try {
-        await browser.close();
-      } catch {}
-    }
-  }
-}
-    // =========================
-    // =========================
-// CLICK 480P + DETECT NEW TAB
-// =========================
-if (url.pathname === "/click-480p") {
-  let browser;
-
-  try {
-    const target = url.searchParams.get("url");
-
-    if (!target) {
-      return Response.json(
-        { ok: false, error: "Missing url parameter" },
-        { status: 400 }
-      );
-    }
-
-    browser = await puppeteer.launch(env.BROWSER);
-
-    const page = await browser.newPage();
-
-    await page.goto(target, {
-      waitUntil: "domcontentloaded",
-      timeout: 30000
-    });
-
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
-    const pagesBefore = await browser.pages();
-
-    // 480p option click
-    const clicked = await page.evaluate(() => {
-      const elements = [
-        ...document.querySelectorAll("a, button")
-      ];
-
-      const element = elements.find(el => {
-        const text = (el.innerText || "").trim();
-        return /^480p\b/i.test(text);
+        page: {
+          url: optionPage.url(),
+          title: await optionPage.title()
+        }
       });
 
-      if (!element) return false;
-
-      element.click();
-      return true;
-    });
-
-    if (!clicked) {
-      await browser.close();
+    } catch (error) {
 
       return Response.json({
         ok: false,
-        error: "480p button not found"
-      });
+        error: error.message,
+        movie: movie || null
+      }, { status: 500 });
+
+    } finally {
+
+      if (browser) {
+        try {
+          await browser.close();
+        } catch {}
+      }
+
     }
-
-    // New tab / mediator bridge ke liye wait
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    const pagesAfter = await browser.pages();
-
-    const newPages = pagesAfter.filter(
-      p => !pagesBefore.includes(p)
-    );
-
-    if (!newPages.length) {
-      await browser.close();
-
-      return Response.json({
-        ok: false,
-        clicked: true,
-        newPageOpened: false,
-        error: "Mediator page not detected"
-      });
-    }
-
-    const mediator = newPages[newPages.length - 1];
-
-    // Mediator page ko load hone ka thoda time
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    const timerInfo = await mediator.evaluate(() => {
-      const timer = document.querySelector("#timer");
-      const countdown = document.querySelector("#countdown");
-      const status = document.querySelector("#status_msg");
-
-      return {
-        timerExists: !!timer,
-        timerText: timer?.textContent?.trim() || null,
-
-        countdownExists: !!countdown,
-
-        countdownHidden:
-          countdown?.classList.contains("hidden") ?? null,
-
-        statusText:
-          status?.textContent?.trim() || null,
-
-        url: location.href,
-        title: document.title
-      };
-    });
-
-    await browser.close();
-
-    return Response.json({
-      ok: true,
-      clicked: true,
-      newPageOpened: true,
-      mediator: timerInfo
-    });
-
-  } catch (error) {
-    try {
-      if (browser) await browser.close();
-    } catch {}
-
-    return Response.json({
-      ok: false,
-      error: error.message
-    }, { status: 500 });
-  }
-}
-
-    // New tab/page ke liye wait
-    await new Promise(resolve => setTimeout(resolve, 3000));
-
-    const pagesAfter = await browser.pages();
-
-    const newPages = pagesAfter.filter(
-      p => !pagesBefore.includes(p)
-    );
-
-    let result = {
-      clicked: true,
-      newPageOpened: newPages.length > 0,
-      pagesFound: pagesAfter.length
-    };
-
-    if (newPages.length > 0) {
-      const newPage = newPages[newPages.length - 1];
-
-      try {
-        await newPage.waitForLoadState?.("domcontentloaded");
-      } catch {}
-
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      result.newPage = {
-        url: newPage.url(),
-        title: await newPage.title()
-      };
-    }
-
-    await page.close();
-
-    return Response.json({
-      ok: true,
-      ...result
-    });
-
-  } catch (error) {
-    return Response.json({
-      ok: false,
-      error: error.message
-    }, { status: 500 });
-
-  } finally {
-    if (browser) {
-      try {
-        await browser.close();
-      } catch {}
-    }
-  }
-}
-    // =========================
-    // 404
-    // =========================
-    return Response.json({
-      ok: false,
-      error: "Endpoint not found"
-    }, { status: 404 });
   }
 };
