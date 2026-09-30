@@ -319,7 +319,104 @@ if (hubNewPages.length > 0) {
     setTimeout(resolve, 1500)
   );
 }
+// =========================
+// CLICK GENERATE LINK
+// TEST ONLY
+// =========================
 
+const pagesBeforeGenerate =
+  await browser.pages();
+
+const clickedGenerate =
+  await finalPage.evaluate(() => {
+
+    const elements = [
+      ...document.querySelectorAll("a, button")
+    ];
+
+    const target = elements.find(el => {
+      const text = (
+        el.innerText ||
+        el.textContent ||
+        ""
+      )
+        .replace(/\s+/g, " ")
+        .trim();
+
+      return /Generate Direct Download Link/i.test(text);
+    });
+
+    if (!target) {
+      return false;
+    }
+
+    target.click();
+
+    return true;
+  });
+
+if (!clickedGenerate) {
+  return Response.json({
+    ok: false,
+    movie,
+    error: "Generate Direct Download Link option not found"
+  }, { status: 404 });
+}
+
+// Wait for navigation / new tab
+await new Promise(resolve =>
+  setTimeout(resolve, 3000)
+);
+
+const pagesAfterGenerate =
+  await browser.pages();
+
+const generateNewPages =
+  pagesAfterGenerate.filter(
+    p => !pagesBeforeGenerate.includes(p)
+  );
+
+let generatePage = finalPage;
+
+if (generateNewPages.length > 0) {
+  generatePage =
+    generateNewPages[generateNewPages.length - 1];
+
+  await new Promise(resolve =>
+    setTimeout(resolve, 1500)
+  );
+}
+
+// Basic page state only
+const generateState =
+  await generatePage.evaluate(() => ({
+    url: location.href,
+    title: document.title,
+
+    visibleText:
+      (document.body?.innerText || "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 2000),
+
+    options: [
+      ...document.querySelectorAll(
+        "a, button"
+      )
+    ]
+      .map(el => ({
+        tag: el.tagName,
+        text: (
+          el.innerText ||
+          el.textContent ||
+          ""
+        )
+          .replace(/\s+/g, " ")
+          .trim()
+      }))
+      .filter(x => x.text)
+      .slice(0, 100)
+  }));
 // New page ka basic state
 const hubState =
   await finalPage.evaluate(() => ({
