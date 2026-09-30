@@ -1,78 +1,12 @@
 import puppeteer from "@cloudflare/puppeteer";
 
-const SEARCH_URL = "https://new1.hdhub4u.free/search.html";
-
-const sleep = (ms) =>
-  new Promise(resolve => setTimeout(resolve, ms));
-
-function normalize(text = "") {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function movieTokens(movie) {
-  return normalize(movie)
-    .split(" ")
-    .filter(x => x.length > 1);
-}
-
-async function findPageContaining(browser, regex) {
-  const pages = await browser.pages();
-
-  for (const page of pages) {
-    try {
-      const text = await page.evaluate(
-        () => document.body?.innerText || ""
-      );
-
-      if (regex.test(text)) {
-        return page;
-      }
-    } catch {}
-  }
-
-  return null;
-}
-
-async function clickText(page, regex) {
-  return await page.evaluate((pattern) => {
-    const re = new RegExp(pattern, "i");
-
-    const elements = [
-      ...document.querySelectorAll("a, button, input[type='button'], input[type='submit']")
-    ];
-
-    const el = elements.find(node => {
-      const text = (
-        node.innerText ||
-        node.textContent ||
-        node.value ||
-        ""
-      )
-        .replace(/\s+/g, " ")
-        .trim();
-
-      return re.test(text);
-    });
-
-    if (!el) return false;
-
-    el.click();
-    return true;
-  }, regex.source);
-}
-
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
     // =========================
-    // HOME
+    // HEALTH CHECK
     // =========================
-
     if (url.pathname === "/") {
       return Response.json({
         ok: true,
@@ -82,51 +16,160 @@ export default {
     }
 
     // =========================
-    // MOVIE ROUTE
-    // /Toxic-2026
+    // TEST BROWSER
     // =========================
+    if (url.pathname === "/test-browser") {
+      let browser;
 
-    const moviePath = decodeURIComponent(
-      url.pathname.replace(/^\/+|\/+$/g, "")
-    );
+      try {
+        browser = await puppeteer.launch(env.BROWSER);
 
-    if (!moviePath) {
-      return Response.json({
-        ok: false,
-        error: "Movie name missing"
-      }, { status: 400 });
+        const page = await browser.newPage();
+
+        await page.goto("https://example.com", {
+          waitUntil: "domcontentloaded"
+        });
+
+        const title = await page.title();
+        const currentUrl = page.url();
+
+        await page.close();
+
+        return Response.json({
+          ok: true,
+          browser: "running",
+          title,
+          url: currentUrl
+        });
+
+      } catch (error) {
+        return Response.json({
+          ok: false,
+          error: error.message
+        }, { status: 500 });
+
+      } finally {
+        if (browser) {
+          try {
+            await browser.close();
+          } catch {}
+        }
+      }
     }
 
-    const movie = moviePath.replace(/[-_]+/g, " ").trim();
+    // =========================
+    // TEST PAGE
+    // =========================
+    if (url.pathname === "/test-page") {
+      let browser;
 
-    let browser;
+      try {
+        browser = await puppeteer.launch(env.BROWSER);
 
-    try {
-      browser = await puppeteer.launch(env.BROWSER);
+        const page = await browser.newPage();
 
-      // =========================
-      // 1. SEARCH PAGE
-      // =========================
+        await page.goto("https://example.com", {
+          waitUntil: "domcontentloaded"
+        });
 
-      const searchPage = await browser.newPage();
+        const data = await page.evaluate(() => ({
+          heading: document.querySelector("h1")?.innerText || null,
 
-      await searchPage.goto(SEARCH_URL, {
-        waitUntil: "domcontentloaded",
-        timeout: 30000
-      });
+          links: [...document.querySelectorAll("a")].map(a => ({
+            text: a.innerText.trim(),
+            href: a.href
+          }))
+        }));
 
-      await sleep(1000);
+        await page.close();
 
-      const searchBox = searchPage.locator(
-        'input[placeholder*="Search"]'
-      );
+        return Response.json({
+          ok: true,
+          data
+        });
 
-      await searchBox.fill(movie);
+      } catch (error) {
+        return Response.json({
+          ok: false,
+          error: error.message
+        }, { status: 500 });
 
-      // Search button
-      await searchPage.locator("button").click();
+      } finally {
+        if (browser) {
+          try {
+            await browser.close();
+          } catch {}
+        }
+      }
+    }
 
-      await sleep(1500);
+    // =========================
+    // SEARCH
+    // =========================
+    if (url.pathname === "/search") {
+      let browser;
+
+      try {
+        const query = url.searchParams.get("q");
+
+        if (!query) {
+          return Response.json({
+            ok: false,
+            error: "Missing q parameter"
+          }, { status: 400 });
+        }
+
+        browser = await puppeteer.launch(env.BROWSER);
+
+        const page = await browser.newPage();
+
+        await page.goto("https://new1.hdhub4u.free/search.html", {
+          waitUntil: "domcontentloaded"
+        });
+
+        const searchBox = await page.locator(
+          'input[placeholder*="Search"]'
+        );
+
+        await searchBox.fill(query);
+
+        await page.locator("button").click();
+
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        const results = await page.evaluate(() => {
+          return [...document.querySelectorAll("a")]
+            .map(a => ({
+              title: (a.innerText || "").trim(),
+              url: a.href
+            }))
+            .filter(x => x.title && x.url);
+        });
+
+        await page.close();
+
+        return Response.json({
+          ok: true,
+          query,
+          results
+        });
+
+      } catch (error) {
+        return Response.json({
+          ok: false,
+          error: error.message
+        }, { status: 500 });
+
+      } finally {
+        if (browser) {
+          try {
+            await browser.close();
+          } catch {}
+        }
+      }
+    }
+
+    // =========================
 
       // =========================
       // 2. FIND MATCHING MOVIE
