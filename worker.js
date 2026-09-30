@@ -1,4 +1,4 @@
-import puppeteer from "@cloudflare/puppeteer";
+*import puppeteer from "@cloudflare/puppeteer";
 
 export default {
   async fetch(request, env) {
@@ -250,7 +250,124 @@ export default {
         }
 
         // =========================
-        // PAGE STATE
+       // =========================
+// AFTER 720P CLICK
+// FIND HUBCLOUD SERVER
+// =========================
+
+await new Promise(resolve =>
+  setTimeout(resolve, 2000)
+);
+
+let hubPage = activePage;
+
+// Agar new page nahi mili, current page hi use hoga
+const clickedHubCloud = await hubPage.evaluate(() => {
+  const elements = [
+    ...document.querySelectorAll("a, button")
+  ];
+
+  const target = elements.find(el => {
+    const text = (
+      el.innerText ||
+      el.textContent ||
+      ""
+    )
+      .replace(/\s+/g, " ")
+      .trim();
+
+    return /HubCloud\s*Server/i.test(text);
+  });
+
+  if (!target) {
+    return false;
+  }
+
+  target.click();
+
+  return true;
+});
+
+if (!clickedHubCloud) {
+  return Response.json({
+    ok: false,
+    movie,
+    error: "HubCloud Server option not found"
+  }, { status: 404 });
+}
+
+// New tab/page/navigation ke liye wait
+await new Promise(resolve =>
+  setTimeout(resolve, 3000)
+);
+
+const pagesAfterHub =
+  await browser.pages();
+
+const hubNewPages =
+  pagesAfterHub.filter(
+    p => !pagesAfter.includes(p)
+  );
+
+let finalPage = hubPage;
+
+if (hubNewPages.length > 0) {
+  finalPage =
+    hubNewPages[hubNewPages.length - 1];
+
+  await new Promise(resolve =>
+    setTimeout(resolve, 1500)
+  );
+}
+
+// New page ka basic state
+const hubState =
+  await finalPage.evaluate(() => ({
+    url: location.href,
+    title: document.title,
+
+    options: [
+      ...document.querySelectorAll(
+        "a, button"
+      )
+    ]
+      .map(el => ({
+        tag: el.tagName,
+        text: (
+          el.innerText ||
+          el.textContent ||
+          ""
+        )
+          .replace(/\s+/g, " ")
+          .trim()
+      }))
+      .filter(x => x.text)
+      .slice(0, 100)
+  }));
+
+return Response.json({
+  ok: true,
+
+  movie,
+
+  result: {
+    title: matched.title,
+    url: matched.url
+  },
+
+  flow: {
+    search: true,
+    resultFound: true,
+    quality: "720p",
+    clicked720p: true,
+    hubCloudServer: true,
+    hubCloudNewPageOpened:
+      hubNewPages.length > 0
+  },
+
+  page: hubState
+});
+         // PAGE STATE
         // =========================
 
         const state =
