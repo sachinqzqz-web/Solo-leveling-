@@ -1,4 +1,4 @@
-*import puppeteer from "@cloudflare/puppeteer";
+import puppeteer from "@cloudflare/puppeteer";
 
 export default {
   async fetch(request, env) {
