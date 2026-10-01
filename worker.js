@@ -387,82 +387,76 @@ if (generateNewPages.length > 0) {
   );
 }
 
-// Basic page state only
-const generateState =
-  await generatePage.evaluate(() => ({
-    url: location.href,
-    title: document.title,
+//// =========================
+// PRIORITY CHECK
+// FSLv2 → FSL → 10Gbps
+// =========================
 
-    visibleText:
-      (document.body?.innerText || "")
+const priorityState = await generatePage.evaluate(() => {
+
+  const elements = [
+    ...document.querySelectorAll("a, button")
+  ];
+
+  const findOption = (pattern) => {
+    const target = elements.find(el => {
+      const text = (
+        el.innerText ||
+        el.textContent ||
+        ""
+      )
+        .replace(/\s+/g, " ")
+        .trim();
+
+      return pattern.test(text);
+    });
+
+    if (!target) {
+      return null;
+    }
+
+    return {
+      tag: target.tagName,
+      text: (
+        target.innerText ||
+        target.textContent ||
+        ""
+      )
         .replace(/\s+/g, " ")
         .trim()
-        .slice(0, 2000),
+    };
+  };
 
-    options: [
-      ...document.querySelectorAll(
-        "a, button"
-      )
-    ]
-      .map(el => ({
-        tag: el.tagName,
-        text: (
-          el.innerText ||
-          el.textContent ||
-          ""
-        )
-          .replace(/\s+/g, " ")
-          .trim()
-      }))
-      .filter(x => x.text)
-      .slice(0, 100)
-  }));
-// New page ka basic state
-const hubState =
-  await finalPage.evaluate(() => ({
-    url: location.href,
-    title: document.title,
+  const fslv2 = findOption(
+    /Download\s*\[FSLv2 Server\]/i
+  );
 
-    options: [
-      ...document.querySelectorAll(
-        "a, button"
-      )
-    ]
-      .map(el => ({
-        tag: el.tagName,
-        text: (
-          el.innerText ||
-          el.textContent ||
-          ""
-        )
-          .replace(/\s+/g, " ")
-          .trim()
-      }))
-      .filter(x => x.text)
-      .slice(0, 100)
-  }));
+  const fsl = findOption(
+    /Download\s*\[FSL Server\]/i
+  );
 
-return Response.json({
-  ok: true,
+  const server10gbps = findOption(
+    /Download\s*\[Server\s*:\s*10Gbps\]/i
+  );
 
-  movie,
+  let selected = null;
 
-  result: {
-    title: matched.title,
-    url: matched.url
-  },
+  if (fslv2) {
+    selected = "FSLv2";
+  } else if (fsl) {
+    selected = "FSL";
+  } else if (server10gbps) {
+    selected = "10Gbps";
+  }
 
-  flow: {
-    search: true,
-    resultFound: true,
-    quality: "720p",
-    clicked720p: true,
-    hubCloudServer: true,
-    hubCloudNewPageOpened:
-      hubNewPages.length > 0
-  },
-
-  page: hubState
+  return {
+    selected,
+    available: {
+      FSLv2: !!fslv2,
+      FSL: !!fsl,
+      "10Gbps": !!server10gbps
+    }
+  };
 });
          // PAGE STATE
         // =========================
@@ -517,7 +511,7 @@ return Response.json({
             newPageOpened:
               newPages.length > 0
           },
-
+         priority: priorityState,
           page: state
         });
 
