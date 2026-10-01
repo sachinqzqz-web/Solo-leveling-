@@ -393,69 +393,43 @@ if (generateNewPages.length > 0) {
 // =========================
 
 const priorityState = await generatePage.evaluate(() => {
+  const elements = [...document.querySelectorAll("a")];
 
-  const elements = [
-    ...document.querySelectorAll("a, button")
+  const rules = [
+    {
+      name: "FSLv2",
+      regex: /Download\s*\[FSLv2 Server\]/i
+    },
+    {
+      name: "FSL",
+      regex: /Download\s*\[FSL Server\]/i
+    },
+    {
+      name: "10Gbps",
+      regex: /Download\s*\[Server\s*:\s*10Gbps\]/i
+    }
   ];
 
-  const findOption = (pattern) => {
-    const target = elements.find(el => {
-      const text = (
-        el.innerText ||
-        el.textContent ||
-        ""
+  for (const rule of rules) {
+    const el = elements.find(a =>
+      rule.regex.test(
+        (a.innerText || "").replace(/\s+/g, " ").trim()
       )
-        .replace(/\s+/g, " ")
-        .trim();
+    );
 
-      return pattern.test(text);
-    });
-
-    if (!target) {
-      return null;
+    if (el) {
+      return {
+        selected: rule.name,
+        text: (el.innerText || "").trim(),
+        href: el.href || null
+      };
     }
-
-    return {
-      tag: target.tagName,
-      text: (
-        target.innerText ||
-        target.textContent ||
-        ""
-      )
-        .replace(/\s+/g, " ")
-        .trim()
-    };
-  };
-
-  const fslv2 = findOption(
-    /Download\s*\[FSLv2 Server\]/i
-  );
-
-  const fsl = findOption(
-    /Download\s*\[FSL Server\]/i
-  );
-
-  const server10gbps = findOption(
-    /Download\s*\[Server\s*:\s*10Gbps\]/i
-  );
-
-  let selected = null;
-
-  if (fslv2) {
-    selected = "FSLv2";
-  } else if (fsl) {
-    selected = "FSL";
-  } else if (server10gbps) {
-    selected = "10Gbps";
   }
 
   return {
-    selected,
-    available: {
-      FSLv2: !!fslv2,
-      FSL: !!fsl,
-      "10Gbps": !!server10gbps
-    }
+    selected: null,
+    text: null,
+    href: null
   };
 });
          // PAGE STATE
@@ -512,7 +486,7 @@ const priorityState = await generatePage.evaluate(() => {
               newPages.length > 0
           },
          priority: priorityState,
-          page: state
+          page: generateState
         });
 
       } catch (error) {
