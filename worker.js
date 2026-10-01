@@ -486,7 +486,7 @@ const priorityState = await generatePage.evaluate(() => {
               newPages.length > 0
           },
          priority: priorityState,
-          page: generateState
+          page: State
         });
 
       } catch (error) {
