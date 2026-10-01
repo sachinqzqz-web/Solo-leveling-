@@ -1,5 +1,22 @@
 import puppeteer from "@cloudflare/puppeteer";
+async function getBrowser(env) {
+  const sessions = await puppeteer.sessions(env.BROWSER);
 
+  if (sessions.length > 0) {
+    for (const session of sessions) {
+      try {
+        return await puppeteer.connect(
+          env.BROWSER,
+          session.sessionId
+        );
+      } catch {}
+    }
+  }
+
+  return await puppeteer.launch(env.BROWSER, {
+    keep_alive: 600000
+  });
+}
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -80,7 +97,7 @@ export default {
           }, { status: 400 });
         }
 
-        browser = await puppeteer.launch(env.BROWSER);
+        browser = await getBrowser(env);
 
         const page = await browser.newPage();
 
