@@ -449,3 +449,18 @@ if (!selectedLink) {
   url: selectedLink.url,
   server: selectedLink.server
 });
+
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: error?.message || String(error)
+    });
+
+  } finally {
+    if (browser) {
+      try {
+        await browser.close();
+      } catch {}
+    }
+  }
+}
