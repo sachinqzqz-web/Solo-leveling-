@@ -259,6 +259,177 @@ export default async function handler(req, res) {
     }
 
     // =========================
+// AFTER 720P
+// FIND AUTHORIZED SERVER
+// =========================
+
+await new Promise(resolve =>
+  setTimeout(resolve, 2000)
+);
+
+let serverPage = activePage;
+
+const clickedServer = await serverPage.evaluate(() => {
+  const elements = [
+    ...document.querySelectorAll("a, button")
+  ];
+
+  const target = elements.find(el => {
+    const text = (
+      el.innerText ||
+      el.textContent ||
+      ""
+    )
+      .replace(/\s+/g, " ")
+      .trim();
+
+    // Apne authorized server button ka text yahan rakho
+    return /Your Server/i.test(text);
+  });
+
+  if (!target) {
+    return false;
+  }
+
+  target.click();
+  return true;
+});
+
+if (!clickedServer) {
+  return res.status(404).json({
+    ok: false,
+    movie,
+    error: "Authorized server option not found"
+  });
+}
+
+// =========================
+// WAIT FOR SERVER PAGE
+// =========================
+
+await new Promise(resolve =>
+  setTimeout(resolve, 3000)
+);
+
+const pagesAfterServer =
+  await browser.pages();
+
+const serverNewPages =
+  pagesAfterServer.filter(
+    p => !pagesAfter.includes(p)
+  );
+
+let finalPage = serverPage;
+
+if (serverNewPages.length > 0) {
+  finalPage =
+    serverNewPages[serverNewPages.length - 1];
+
+  await new Promise(resolve =>
+    setTimeout(resolve, 1500)
+  );
+}
+
+// =========================
+// GENERATE
+// =========================
+
+const clickedGenerate =
+  await finalPage.evaluate(() => {
+
+    const elements = [
+      ...document.querySelectorAll("a, button")
+    ];
+
+    const target = elements.find(el => {
+      const text = (
+        el.innerText ||
+        el.textContent ||
+        ""
+      )
+        .replace(/\s+/g, " ")
+        .trim();
+
+      return /Generate/i.test(text);
+    });
+
+    if (!target) {
+      return false;
+    }
+
+    target.click();
+    return true;
+  });
+
+if (!clickedGenerate) {
+  return res.status(404).json({
+    ok: false,
+    movie,
+    error: "Generate option not found"
+  });
+}
+
+// =========================
+// WAIT AFTER GENERATE
+// =========================
+
+await new Promise(resolve =>
+  setTimeout(resolve, 3000)
+);
+
+const pagesAfterGenerate =
+  await browser.pages();
+
+const generateNewPages =
+  pagesAfterGenerate.filter(
+    p => !pagesAfterServer.includes(p)
+  );
+
+let generatePage = finalPage;
+
+if (generateNewPages.length > 0) {
+  generatePage =
+    generateNewPages[generateNewPages.length - 1];
+
+  await new Promise(resolve =>
+    setTimeout(resolve, 1500)
+  );
+}
+
+// =========================
+// FINAL PAGE STATE
+// =========================
+
+const finalState =
+  await generatePage.evaluate(() => {
+
+    const elements = [
+      ...document.querySelectorAll("a, button")
+    ];
+
+    return {
+      url: location.href,
+      title: document.title,
+
+      options: elements
+        .map(el => ({
+          tag: el.tagName,
+          text: (
+            el.innerText ||
+            el.textContent ||
+            ""
+          )
+            .replace(/\s+/g, " ")
+            .trim(),
+          href:
+            el.tagName === "A"
+              ? el.href || null
+              : null
+        }))
+        .filter(x => x.text)
+        .slice(0, 100)
+    };
+  });// =========================
     // PAGE STATE
     // =========================
 
