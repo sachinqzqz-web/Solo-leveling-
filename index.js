@@ -16,8 +16,7 @@ export default async function handler(req, res) {
     );
 
     const movie = decodeURIComponent(
-      requestUrl.pathname
-        .replace(/^\/+|\/+$/g, "")
+      requestUrl.pathname.replace(/^\/+|\/+$/g, "")
     )
       .replace(/[-_]+/g, " ")
       .trim();
@@ -35,7 +34,7 @@ export default async function handler(req, res) {
     }
 
     // =========================
-    // LAUNCH CHROMIUM
+    // BROWSER
     // =========================
 
     browser = await puppeteer.launch({
@@ -45,11 +44,8 @@ export default async function handler(req, res) {
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage"
       ],
-
       executablePath: await chromium.executablePath(),
-
       headless: true,
-
       defaultViewport: {
         width: 1280,
         height: 720
@@ -59,7 +55,7 @@ export default async function handler(req, res) {
     const page = await browser.newPage();
 
     // =========================
-    // SEARCH PAGE
+    // SEARCH
     // =========================
 
     await page.goto(
@@ -69,10 +65,6 @@ export default async function handler(req, res) {
         timeout: 30000
       }
     );
-
-    // =========================
-    // SEARCH BOX
-    // =========================
 
     const searchBox = await page.$(
       'input[placeholder*="Search"]'
@@ -87,10 +79,6 @@ export default async function handler(req, res) {
     }
 
     await searchBox.type(movie);
-
-    // =========================
-    // SEARCH BUTTON
-    // =========================
 
     const searchButton = await page.$("button");
 
@@ -109,7 +97,7 @@ export default async function handler(req, res) {
     );
 
     // =========================
-    // GET RESULTS
+    // RESULTS
     // =========================
 
     const results = await page.evaluate(() => {
@@ -118,14 +106,11 @@ export default async function handler(req, res) {
           title: (a.innerText || "").trim(),
           url: a.href
         }))
-        .filter(item =>
-          item.title &&
-          item.url
-        );
+        .filter(x => x.title && x.url);
     });
 
     // =========================
-    // MATCH RESULT
+    // MATCH
     // =========================
 
     const wanted = movie.toLowerCase();
@@ -135,15 +120,12 @@ export default async function handler(req, res) {
       .filter(Boolean);
 
     let matched = results.find(item =>
-      item.title
-        .toLowerCase()
-        .includes(wanted)
+      item.title.toLowerCase().includes(wanted)
     );
 
     if (!matched) {
       matched = results.find(item => {
-        const title =
-          item.title.toLowerCase();
+        const title = item.title.toLowerCase();
 
         return words.every(word =>
           title.includes(word)
@@ -164,20 +146,17 @@ export default async function handler(req, res) {
     // OPEN RESULT
     // =========================
 
-    await page.goto(
-      matched.url,
-      {
-        waitUntil: "domcontentloaded",
-        timeout: 30000
-      }
-    );
+    await page.goto(matched.url, {
+      waitUntil: "domcontentloaded",
+      timeout: 30000
+    });
 
     await new Promise(resolve =>
       setTimeout(resolve, 1500)
     );
 
     // =========================
-    // SAVE CURRENT PAGES
+    // PAGES BEFORE 720P
     // =========================
 
     const pagesBefore =
@@ -189,15 +168,11 @@ export default async function handler(req, res) {
 
     const clicked720p =
       await page.evaluate(() => {
-
         const elements = [
-          ...document.querySelectorAll(
-            "a, button"
-          )
+          ...document.querySelectorAll("a, button")
         ];
 
         const target = elements.find(el => {
-
           const text = (
             el.innerText ||
             el.textContent ||
@@ -209,12 +184,9 @@ export default async function handler(req, res) {
           return /^720p\b/i.test(text);
         });
 
-        if (!target) {
-          return false;
-        }
+        if (!target) return false;
 
         target.click();
-
         return true;
       });
 
@@ -234,10 +206,6 @@ export default async function handler(req, res) {
     await new Promise(resolve =>
       setTimeout(resolve, 3000)
     );
-
-    // =========================
-    // CHECK NEW PAGE
-    // =========================
 
     const pagesAfter =
       await browser.pages();
@@ -259,208 +227,181 @@ export default async function handler(req, res) {
     }
 
     // =========================
-// AFTER 720P
-// FIND AUTHORIZED SERVER
-// =========================
+    // SERVER PAGE
+    // =========================
 
-await new Promise(resolve =>
-  setTimeout(resolve, 2000)
-);
+    await new Promise(resolve =>
+      setTimeout(resolve, 2000)
+    );
 
-let serverPage = activePage;
+    const pagesBeforeServer =
+      await browser.pages();
 
-const clickedServer = await serverPage.evaluate(() => {
-  const elements = [
-    ...document.querySelectorAll("a, button")
-  ];
+    const clickedServer =
+      await activePage.evaluate(() => {
+        const elements = [
+          ...document.querySelectorAll("a, button")
+        ];
 
-  const target = elements.find(el => {
-    const text = (
-      el.innerText ||
-      el.textContent ||
-      ""
-    )
-      .replace(/\s+/g, " ")
-      .trim();
-
-    // Apne authorized server button ka text yahan rakho
-    return /Your Server/i.test(text);
-  });
-
-  if (!target) {
-    return false;
-  }
-
-  target.click();
-  return true;
-});
-
-if (!clickedServer) {
-  return res.status(404).json({
-    ok: false,
-    movie,
-    error: "Authorized server option not found"
-  });
-}
-
-// =========================
-// WAIT FOR SERVER PAGE
-// =========================
-
-await new Promise(resolve =>
-  setTimeout(resolve, 3000)
-);
-
-const pagesAfterServer =
-  await browser.pages();
-
-const serverNewPages =
-  pagesAfterServer.filter(
-    p => !pagesAfter.includes(p)
-  );
-
-let finalPage = serverPage;
-
-if (serverNewPages.length > 0) {
-  finalPage =
-    serverNewPages[serverNewPages.length - 1];
-
-  await new Promise(resolve =>
-    setTimeout(resolve, 1500)
-  );
-}
-
-// =========================
-// GENERATE
-// =========================
-
-const clickedGenerate =
-  await finalPage.evaluate(() => {
-
-    const elements = [
-      ...document.querySelectorAll("a, button")
-    ];
-
-    const target = elements.find(el => {
-      const text = (
-        el.innerText ||
-        el.textContent ||
-        ""
-      )
-        .replace(/\s+/g, " ")
-        .trim();
-
-      return /Generate/i.test(text);
-    });
-
-    if (!target) {
-      return false;
-    }
-
-    target.click();
-    return true;
-  });
-
-if (!clickedGenerate) {
-  return res.status(404).json({
-    ok: false,
-    movie,
-    error: "Generate option not found"
-  });
-}
-
-// =========================
-// WAIT AFTER GENERATE
-// =========================
-
-await new Promise(resolve =>
-  setTimeout(resolve, 3000)
-);
-
-const pagesAfterGenerate =
-  await browser.pages();
-
-const generateNewPages =
-  pagesAfterGenerate.filter(
-    p => !pagesAfterServer.includes(p)
-  );
-
-let generatePage = finalPage;
-
-if (generateNewPages.length > 0) {
-  generatePage =
-    generateNewPages[generateNewPages.length - 1];
-
-  await new Promise(resolve =>
-    setTimeout(resolve, 1500)
-  );
-}
-
-// =========================
-// FINAL PAGE STATE
-// =========================
-
-const finalState =
-  await generatePage.evaluate(() => {
-
-    const elements = [
-      ...document.querySelectorAll("a, button")
-    ];
-
-    return {
-      url: location.href,
-      title: document.title,
-
-      options: elements
-        .map(el => ({
-          tag: el.tagName,
-          text: (
+        const target = elements.find(el => {
+          const text = (
             el.innerText ||
             el.textContent ||
             ""
           )
             .replace(/\s+/g, " ")
-            .trim(),
-          href:
-            el.tagName === "A"
-              ? el.href || null
-              : null
+            .trim();
+
+          // Authorized server label
+          return /HubCloud\s*Server/i.test(text);
+        });
+
+        if (!target) return false;
+
+        target.click();
+        return true;
+      });
+
+    if (!clickedServer) {
+      return res.status(404).json({
+        ok: false,
+        movie,
+        error: "Authorized server option not found",
+        page: await activePage.evaluate(() => ({
+          url: location.href,
+          title: document.title
         }))
-        .filter(x => x.text)
-        .slice(0, 100)
-    };
-  });// =========================
-    // PAGE STATE
+      });
+    }
+
+    // =========================
+    // WAIT SERVER PAGE
     // =========================
 
-    const state =
-      await activePage.evaluate(() => {
+    await new Promise(resolve =>
+      setTimeout(resolve, 3000)
+    );
 
-        const options = [
-          ...document.querySelectorAll(
-            "a, button"
-          )
-        ]
-          .map(el => ({
-            tag: el.tagName,
+    const pagesAfterServer =
+      await browser.pages();
 
-            text: (
-              el.innerText ||
-              el.textContent ||
-              ""
-            )
-              .replace(/\s+/g, " ")
-              .trim()
-          }))
-          .filter(item =>
-            item.text
+    const serverNewPages =
+      pagesAfterServer.filter(
+        p => !pagesBeforeServer.includes(p)
+      );
+
+    let finalPage = activePage;
+
+    if (serverNewPages.length > 0) {
+      finalPage =
+        serverNewPages[serverNewPages.length - 1];
+
+      await new Promise(resolve =>
+        setTimeout(resolve, 1500)
+      );
+    }
+
+    // =========================
+    // GENERATE
+    // =========================
+
+    const pagesBeforeGenerate =
+      await browser.pages();
+
+    const clickedGenerate =
+      await finalPage.evaluate(() => {
+        const elements = [
+          ...document.querySelectorAll("a, button")
+        ];
+
+        const target = elements.find(el => {
+          const text = (
+            el.innerText ||
+            el.textContent ||
+            ""
           )
-          .slice(0, 100);
+            .replace(/\s+/g, " ")
+            .trim();
+
+          return /Generate/i.test(text);
+        });
+
+        if (!target) return false;
+
+        target.click();
+        return true;
+      });
+
+    if (!clickedGenerate) {
+      return res.status(404).json({
+        ok: false,
+        movie,
+        error: "Generate option not found",
+        page: await finalPage.evaluate(() => ({
+          url: location.href,
+          title: document.title
+        }))
+      });
+    }
+
+    // =========================
+    // WAIT GENERATE
+    // =========================
+
+    await new Promise(resolve =>
+      setTimeout(resolve, 3000)
+    );
+
+    const pagesAfterGenerate =
+      await browser.pages();
+
+    const generateNewPages =
+      pagesAfterGenerate.filter(
+        p => !pagesBeforeGenerate.includes(p)
+      );
+
+    let generatePage = finalPage;
+
+    if (generateNewPages.length > 0) {
+      generatePage =
+        generateNewPages[generateNewPages.length - 1];
+
+      await new Promise(resolve =>
+        setTimeout(resolve, 1500)
+      );
+    }
+
+    // =========================
+    // FINAL PAGE STATE
+    // =========================
+
+    const finalState =
+      await generatePage.evaluate(() => {
+        const elements = [
+          ...document.querySelectorAll("a, button")
+        ];
 
         return {
           url: location.href,
           title: document.title,
-          options
+
+          options: elements
+            .map(el => ({
+              tag: el.tagName,
+              text: (
+                el.innerText ||
+                el.textContent ||
+                ""
+              )
+                .replace(/\s+/g, " ")
+                .trim(),
+              href:
+                el.tagName === "A"
+                  ? el.href || null
+                  : null
+            }))
+            .filter(x => x.text)
+            .slice(0, 100)
         };
       });
 
@@ -469,7 +410,6 @@ const finalState =
     // =========================
 
     return res.status(200).json({
-
       ok: true,
 
       movie,
@@ -484,24 +424,25 @@ const finalState =
         resultFound: true,
         quality: "720p",
         clicked720p: true,
-        newPageOpened:
-          newPages.length > 0
+        newPageOpened: newPages.length > 0,
+        serverClicked: true,
+        serverNewPageOpened:
+          serverNewPages.length > 0,
+        generateClicked: true,
+        generateNewPageOpened:
+          generateNewPages.length > 0
       },
 
-      page: state
+      page: finalState
     });
 
   } catch (error) {
-
     return res.status(500).json({
       ok: false,
-      error:
-        error?.message ||
-        String(error)
+      error: error?.message || String(error)
     });
 
   } finally {
-
     if (browser) {
       try {
         await browser.close();
