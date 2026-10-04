@@ -435,12 +435,11 @@ const selectedLink = await page.evaluate(() => {
   };
 });
 
-if (!selectedLink) {
-  return res.status(404).json({
-    ok: false,
-    error: "No priority server available"
-  });
-}
+return res.status(200).json({
+  ok: true,
+  debug: true,
+  availableOptions: finalState.options
+});
 
 return res.status(200).json({
   ok: true,
