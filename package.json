@@ -1,0 +1,9 @@
+{
+  "name": "animeplex-vercel-api",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@sparticuz/chromium-min": "^133.0.0",
+    "puppeteer-core": "^24.5.0"
+  }
+}
