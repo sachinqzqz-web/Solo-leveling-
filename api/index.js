@@ -405,7 +405,7 @@ export default async function handler(req, res) {
         };
       });
 
-const selectedLink = await page.evaluate(() => {
+const selectedLink = await generatePage.evaluate(() => {
   const links = [...document.querySelectorAll("a")];
 
   const findServer = (pattern) =>
@@ -434,60 +434,18 @@ const selectedLink = await page.evaluate(() => {
     url: selected.href
   };
 });
-
-return res.status(200).json({
-  ok: true,
-  debug: true,
-  availableOptions: finalState.options
-});
-
-return res.status(200).json({
-  ok: true,
-  selectedServer: selectedLink.server,
-  link: selectedLink.url
-});
+if (!selectedLink) {
+  return res.status(404).json({
+    ok: false,
+    error: "No supported server available"
+  });
+}
      // =========================
     // RESPONSE
     // =========================
 
     return res.status(200).json({
-      ok: true,
-
-      movie,
-
-      result: {
-        title: matched.title,
-        url: matched.url
-      },
-
-      flow: {
-        search: true,
-        resultFound: true,
-        quality: "720p",
-        clicked720p: true,
-        newPageOpened: newPages.length > 0,
-        serverClicked: true,
-        serverNewPageOpened:
-          serverNewPages.length > 0,
-        generateClicked: true,
-        generateNewPageOpened:
-          generateNewPages.length > 0
-      },
-
-      page: finalState
-    });
-
-  } catch (error) {
-    return res.status(500).json({
-      ok: false,
-      error: error?.message || String(error)
-    });
-
-  } finally {
-    if (browser) {
-      try {
-        await browser.close();
-      } catch {}
-    }
-  }
-}
+  ok: true,
+  url: selectedLink.url,
+  server: selectedLink.server
+});
