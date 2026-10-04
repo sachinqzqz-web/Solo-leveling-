@@ -418,33 +418,30 @@ const selectedLink = await page.evaluate(() => {
     });
 
   // Priority: FSLv2 → FSL → 10Gbps
-  const selected =
-    findServer(/Download\s*\[FSLv2\s*Server\]/i) ||
-    findServer(/Download\s*\[FSL\s*Server\]/i) ||
-    findServer(/Download\s*\[Server\s*:\s*10Gbps\]/i);
+  const priorityServer =
+  finalState.options.find(x =>
+    /^Download\s*\[FSLv2\s*Server\]$/i.test(x.text)
+  ) ||
+  finalState.options.find(x =>
+    /^Download\s*\[FSL\s*Server\]$/i.test(x.text)
+  ) ||
+  finalState.options.find(x =>
+    /^Download\s*\[Server\s*:\s*10Gbps\]$/i.test(x.text)
+  );
 
-  if (!selected) {
-    return null;
-  }
-
-  return {
-    server: (selected.innerText || selected.textContent || "")
-      .replace(/\s+/g, " ")
-      .trim(),
-    url: selected.href
-  };
-});
-
-return res.status(200).json({
-  ok: true,
-  debug: true,
-  availableOptions: finalState.options
-});
+if (!priorityServer) {
+  return res.status(404).json({
+    ok: false,
+    error: "No priority server available",
+    availableServers: finalState.options
+      .map(x => x.text)
+      .filter(x => /FSL|10Gbps/i.test(x))
+  });
+}
 
 return res.status(200).json({
   ok: true,
-  selectedServer: selectedLink.server,
-  link: selectedLink.url
+  selectedServer: priorityServer.text
 });
      // =========================
     // RESPONSE
