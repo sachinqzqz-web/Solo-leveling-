@@ -405,7 +405,49 @@ export default async function handler(req, res) {
         };
       });
 
-    // =========================
+const selectedLink = await page.evaluate(() => {
+  const links = [...document.querySelectorAll("a")];
+
+  const findServer = (pattern) =>
+    links.find(a => {
+      const text = (a.innerText || a.textContent || "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      return pattern.test(text) && a.href;
+    });
+
+  // Priority: FSLv2 → FSL → 10Gbps
+  const selected =
+    findServer(/Download\s*\[FSLv2\s*Server\]/i) ||
+    findServer(/Download\s*\[FSL\s*Server\]/i) ||
+    findServer(/Download\s*\[Server\s*:\s*10Gbps\]/i);
+
+  if (!selected) {
+    return null;
+  }
+
+  return {
+    server: (selected.innerText || selected.textContent || "")
+      .replace(/\s+/g, " ")
+      .trim(),
+    url: selected.href
+  };
+});
+
+if (!selectedLink) {
+  return res.status(404).json({
+    ok: false,
+    error: "No priority server available"
+  });
+}
+
+return res.status(200).json({
+  ok: true,
+  selectedServer: selectedLink.server,
+  link: selectedLink.url
+});
+     // =========================
     // RESPONSE
     // =========================
 
