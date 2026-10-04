@@ -1,13 +1,23 @@
 import puppeteer from "puppeteer-core";
-import chromium from "@sparticuz/chromium-min";
+import chromium from "@sparticuz/chromium";
 
 export default async function handler(req, res) {
   let browser;
 
   try {
-    const path = req.url || "/";
+    // =========================
+    // MOVIE NAME
+    // /Toxic
+    // =========================
+
+    const requestUrl = new URL(
+      req.url,
+      `https://${req.headers.host || "localhost"}`
+    );
+
     const movie = decodeURIComponent(
-      path.replace(/^\/+|\/+$/g, "")
+      requestUrl.pathname
+        .replace(/^\/+|\/+$/g, "")
     )
       .replace(/[-_]+/g, " ")
       .trim();
@@ -25,7 +35,7 @@ export default async function handler(req, res) {
     }
 
     // =========================
-    // LAUNCH BROWSER
+    // LAUNCH CHROMIUM
     // =========================
 
     browser = await puppeteer.launch({
@@ -35,8 +45,11 @@ export default async function handler(req, res) {
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage"
       ],
+
       executablePath: await chromium.executablePath(),
+
       headless: true,
+
       defaultViewport: {
         width: 1280,
         height: 720
@@ -46,7 +59,7 @@ export default async function handler(req, res) {
     const page = await browser.newPage();
 
     // =========================
-    // SEARCH
+    // SEARCH PAGE
     // =========================
 
     await page.goto(
@@ -56,6 +69,10 @@ export default async function handler(req, res) {
         timeout: 30000
       }
     );
+
+    // =========================
+    // SEARCH BOX
+    // =========================
 
     const searchBox = await page.$(
       'input[placeholder*="Search"]'
@@ -69,11 +86,15 @@ export default async function handler(req, res) {
       });
     }
 
-    await searchBox.fill(movie);
+    await searchBox.type(movie);
 
-    const buttons = await page.$$("button");
+    // =========================
+    // SEARCH BUTTON
+    // =========================
 
-    if (!buttons.length) {
+    const searchButton = await page.$("button");
+
+    if (!searchButton) {
       return res.status(404).json({
         ok: false,
         movie,
@@ -81,14 +102,14 @@ export default async function handler(req, res) {
       });
     }
 
-    await buttons[0].click();
+    await searchButton.click();
 
     await new Promise(resolve =>
       setTimeout(resolve, 1500)
     );
 
     // =========================
-    // RESULTS
+    // GET RESULTS
     // =========================
 
     const results = await page.evaluate(() => {
@@ -97,7 +118,10 @@ export default async function handler(req, res) {
           title: (a.innerText || "").trim(),
           url: a.href
         }))
-        .filter(x => x.title && x.url);
+        .filter(item =>
+          item.title &&
+          item.url
+        );
     });
 
     // =========================
@@ -118,7 +142,8 @@ export default async function handler(req, res) {
 
     if (!matched) {
       matched = results.find(item => {
-        const title = item.title.toLowerCase();
+        const title =
+          item.title.toLowerCase();
 
         return words.every(word =>
           title.includes(word)
@@ -139,17 +164,20 @@ export default async function handler(req, res) {
     // OPEN RESULT
     // =========================
 
-    await page.goto(matched.url, {
-      waitUntil: "domcontentloaded",
-      timeout: 30000
-    });
+    await page.goto(
+      matched.url,
+      {
+        waitUntil: "domcontentloaded",
+        timeout: 30000
+      }
+    );
 
     await new Promise(resolve =>
       setTimeout(resolve, 1500)
     );
 
     // =========================
-    // EXISTING PAGES
+    // SAVE CURRENT PAGES
     // =========================
 
     const pagesBefore =
@@ -161,11 +189,15 @@ export default async function handler(req, res) {
 
     const clicked720p =
       await page.evaluate(() => {
+
         const elements = [
-          ...document.querySelectorAll("a, button")
+          ...document.querySelectorAll(
+            "a, button"
+          )
         ];
 
         const target = elements.find(el => {
+
           const text = (
             el.innerText ||
             el.textContent ||
@@ -182,6 +214,7 @@ export default async function handler(req, res) {
         }
 
         target.click();
+
         return true;
       });
 
@@ -195,12 +228,16 @@ export default async function handler(req, res) {
     }
 
     // =========================
-    // WAIT FOR NEW PAGE
+    // WAIT
     // =========================
 
     await new Promise(resolve =>
       setTimeout(resolve, 3000)
     );
+
+    // =========================
+    // CHECK NEW PAGE
+    // =========================
 
     const pagesAfter =
       await browser.pages();
@@ -212,7 +249,7 @@ export default async function handler(req, res) {
 
     let activePage = page;
 
-    if (newPages.length) {
+    if (newPages.length > 0) {
       activePage =
         newPages[newPages.length - 1];
 
@@ -227,6 +264,7 @@ export default async function handler(req, res) {
 
     const state =
       await activePage.evaluate(() => {
+
         const options = [
           ...document.querySelectorAll(
             "a, button"
@@ -234,6 +272,7 @@ export default async function handler(req, res) {
         ]
           .map(el => ({
             tag: el.tagName,
+
             text: (
               el.innerText ||
               el.textContent ||
@@ -242,7 +281,9 @@ export default async function handler(req, res) {
               .replace(/\s+/g, " ")
               .trim()
           }))
-          .filter(x => x.text)
+          .filter(item =>
+            item.text
+          )
           .slice(0, 100);
 
         return {
@@ -257,6 +298,7 @@ export default async function handler(req, res) {
     // =========================
 
     return res.status(200).json({
+
       ok: true,
 
       movie,
@@ -271,19 +313,24 @@ export default async function handler(req, res) {
         resultFound: true,
         quality: "720p",
         clicked720p: true,
-        newPageOpened: newPages.length > 0
+        newPageOpened:
+          newPages.length > 0
       },
 
       page: state
     });
 
   } catch (error) {
+
     return res.status(500).json({
       ok: false,
-      error: error?.message || String(error)
+      error:
+        error?.message ||
+        String(error)
     });
 
   } finally {
+
     if (browser) {
       try {
         await browser.close();
