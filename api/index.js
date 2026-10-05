@@ -155,7 +155,7 @@ const t0 = Date.now();
     await new Promise(resolve =>
       setTimeout(resolve, 1500)
     );
-
+      const tResult = Date.now();
     // =========================
     // PAGES BEFORE 720P
     // =========================
@@ -451,13 +451,14 @@ if (!selectedLink) {
   server: selectedLink.server,
 
   timing: {
-    total: Date.now() - t0,
-    browser: tBrowser - t0,
-    search: tSearch - tBrowser,
-    quality: t720 - tSearch,
-    server: tServer - t720,
-    generate: tGenerate - tServer
-  }
+  total: Date.now() - t0,
+  browser: tBrowser - t0,
+  search: tSearch - tBrowser,
+  openResult: tResult - tSearch,
+  quality: t720 - tResult,
+  server: tServer - t720,
+  generate: tGenerate - tServer
+}
 });
 
   } catch (error) {
