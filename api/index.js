@@ -149,7 +149,7 @@ const t0 = Date.now();
 
     await page.goto(matched.url, {
       waitUntil: "domcontentloaded",
-      timeout: 20000
+      timeout: 10000
     });
     const tResultLoad = Date.now();
     await new Promise(resolve =>
@@ -205,7 +205,7 @@ const t0 = Date.now();
     // =========================
 
     await new Promise(resolve =>
-      setTimeout(resolve, 2000)
+      setTimeout(resolve, 1000)
     );
     const t720 = Date.now();
     const pagesAfter =
@@ -223,7 +223,7 @@ const t0 = Date.now();
         newPages[newPages.length - 1];
 
       await new Promise(resolve =>
-        setTimeout(resolve, 1500)
+        setTimeout(resolve, 1300)
       );
     }
 
@@ -232,7 +232,7 @@ const t0 = Date.now();
     // =========================
 
     await new Promise(resolve =>
-      setTimeout(resolve, 2000)
+      setTimeout(resolve, 1000)
     );
     const tServer = Date.now();
     const pagesBeforeServer =
@@ -280,7 +280,7 @@ const t0 = Date.now();
     // =========================
 
     await new Promise(resolve =>
-      setTimeout(resolve, 2000)
+      setTimeout(resolve, 1000)
     );
 
     const pagesAfterServer =
@@ -298,7 +298,7 @@ const t0 = Date.now();
         serverNewPages[serverNewPages.length - 1];
 
       await new Promise(resolve =>
-        setTimeout(resolve, 1500)
+        setTimeout(resolve, 1300)
       );
     }
 
@@ -350,7 +350,7 @@ const t0 = Date.now();
     // =========================
 
     await new Promise(resolve =>
-      setTimeout(resolve, 2000)
+      setTimeout(resolve, 1000)
     );
     const tGenerate = Date.now();
     const pagesAfterGenerate =
@@ -368,7 +368,7 @@ const t0 = Date.now();
         generateNewPages[generateNewPages.length - 1];
 
       await new Promise(resolve =>
-        setTimeout(resolve, 1500)
+        setTimeout(resolve, 1300)
       );
     }
 
