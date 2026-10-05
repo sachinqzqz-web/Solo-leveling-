@@ -2,6 +2,7 @@ import puppeteer from "puppeteer-core";
 import chromium from "@sparticuz/chromium";
 
 export default async function handler(req, res) {
+const t0 = Date.now();
   let browser;
 
   try {
@@ -51,7 +52,7 @@ export default async function handler(req, res) {
         height: 720
       }
     });
-
+    const tBrowser = Date.now();
     const page = await browser.newPage();
 
     // =========================
@@ -65,7 +66,7 @@ export default async function handler(req, res) {
         timeout: 30000
       }
     );
-
+    const tSearch = Date.now();
     const searchBox = await page.$(
       'input[placeholder*="Search"]'
     );
@@ -206,7 +207,7 @@ export default async function handler(req, res) {
     await new Promise(resolve =>
       setTimeout(resolve, 3000)
     );
-
+    const t720 = Date.now();
     const pagesAfter =
       await browser.pages();
 
@@ -233,7 +234,7 @@ export default async function handler(req, res) {
     await new Promise(resolve =>
       setTimeout(resolve, 2000)
     );
-
+    const tServer = Date.now();
     const pagesBeforeServer =
       await browser.pages();
 
@@ -351,7 +352,7 @@ export default async function handler(req, res) {
     await new Promise(resolve =>
       setTimeout(resolve, 3000)
     );
-
+    const tGenerate = Date.now();
     const pagesAfterGenerate =
       await browser.pages();
 
@@ -447,7 +448,16 @@ if (!selectedLink) {
     return res.status(200).json({
   ok: true,
   url: selectedLink.url,
-  server: selectedLink.server
+  server: selectedLink.server,
+
+  timing: {
+    total: Date.now() - t0,
+    browser: tBrowser - t0,
+    search: tSearch - tBrowser,
+    quality: t720 - tSearch,
+    server: tServer - t720,
+    generate: tGenerate - tServer
+  }
 });
 
   } catch (error) {
