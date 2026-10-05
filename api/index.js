@@ -63,7 +63,7 @@ const t0 = Date.now();
       "https://new1.hdhub4u.free/search.html",
       {
         waitUntil: "domcontentloaded",
-        timeout: 600
+        timeout: 550
       }
     );
     const tSearch = Date.now();
@@ -94,7 +94,7 @@ const t0 = Date.now();
     await searchButton.click();
 
     await new Promise(resolve =>
-      setTimeout(resolve, 700)
+      setTimeout(resolve, 560)
     );
 
     // =========================
@@ -153,7 +153,7 @@ const t0 = Date.now();
     });
     const tResultLoad = Date.now();
     await new Promise(resolve =>
-      setTimeout(resolve, 1000)
+      setTimeout(resolve, 400)
     );
       const tResult = Date.now();
     // =========================
@@ -205,7 +205,7 @@ const t0 = Date.now();
     // =========================
 
     await new Promise(resolve =>
-      setTimeout(resolve, 600)
+      setTimeout(resolve, 500)
     );
     const t720 = Date.now();
     const pagesAfter =
@@ -223,7 +223,7 @@ const t0 = Date.now();
         newPages[newPages.length - 1];
 
       await new Promise(resolve =>
-        setTimeout(resolve, 700)
+        setTimeout(resolve, 600)
       );
     }
 
@@ -232,7 +232,7 @@ const t0 = Date.now();
     // =========================
 
     await new Promise(resolve =>
-      setTimeout(resolve, 800)
+      setTimeout(resolve, 400)
     );
     const tServer = Date.now();
     const pagesBeforeServer =
@@ -280,7 +280,7 @@ const t0 = Date.now();
     // =========================
 
     await new Promise(resolve =>
-      setTimeout(resolve, 800)
+      setTimeout(resolve, 580)
     );
 
     const pagesAfterServer =
@@ -298,7 +298,7 @@ const t0 = Date.now();
         serverNewPages[serverNewPages.length - 1];
 
       await new Promise(resolve =>
-        setTimeout(resolve, 800)
+        setTimeout(resolve, 300)
       );
     }
 
@@ -350,7 +350,7 @@ const t0 = Date.now();
     // =========================
 
     await new Promise(resolve =>
-      setTimeout(resolve, 1000)
+      setTimeout(resolve, 700)
     );
     const tGenerate = Date.now();
     const pagesAfterGenerate =
@@ -368,7 +368,7 @@ const t0 = Date.now();
         generateNewPages[generateNewPages.length - 1];
 
       await new Promise(resolve =>
-        setTimeout(resolve, 1000)
+        setTimeout(resolve, 800)
       );
     }
 
