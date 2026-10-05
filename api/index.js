@@ -63,7 +63,7 @@ const t0 = Date.now();
       "https://new1.hdhub4u.free/search.html",
       {
         waitUntil: "domcontentloaded",
-        timeout: 1000
+        timeout: 500
       }
     );
     const tSearch = Date.now();
@@ -94,7 +94,7 @@ const t0 = Date.now();
     await searchButton.click();
 
     await new Promise(resolve =>
-      setTimeout(resolve, 1200)
+      setTimeout(resolve, 700)
     );
 
     // =========================
@@ -149,11 +149,11 @@ const t0 = Date.now();
 
     await page.goto(matched.url, {
       waitUntil: "domcontentloaded",
-      timeout: 5000
+      timeout: 4000
     });
     const tResultLoad = Date.now();
     await new Promise(resolve =>
-      setTimeout(resolve, 1200)
+      setTimeout(resolve, 1000)
     );
       const tResult = Date.now();
     // =========================
@@ -205,7 +205,7 @@ const t0 = Date.now();
     // =========================
 
     await new Promise(resolve =>
-      setTimeout(resolve, 1000)
+      setTimeout(resolve, 500)
     );
     const t720 = Date.now();
     const pagesAfter =
@@ -223,7 +223,7 @@ const t0 = Date.now();
         newPages[newPages.length - 1];
 
       await new Promise(resolve =>
-        setTimeout(resolve, 1200)
+        setTimeout(resolve, 700)
       );
     }
 
@@ -232,7 +232,7 @@ const t0 = Date.now();
     // =========================
 
     await new Promise(resolve =>
-      setTimeout(resolve, 1000)
+      setTimeout(resolve, 800)
     );
     const tServer = Date.now();
     const pagesBeforeServer =
@@ -280,7 +280,7 @@ const t0 = Date.now();
     // =========================
 
     await new Promise(resolve =>
-      setTimeout(resolve, 1000)
+      setTimeout(resolve, 800)
     );
 
     const pagesAfterServer =
@@ -298,7 +298,7 @@ const t0 = Date.now();
         serverNewPages[serverNewPages.length - 1];
 
       await new Promise(resolve =>
-        setTimeout(resolve, 1200)
+        setTimeout(resolve, 800)
       );
     }
 
@@ -368,7 +368,7 @@ const t0 = Date.now();
         generateNewPages[generateNewPages.length - 1];
 
       await new Promise(resolve =>
-        setTimeout(resolve, 1200)
+        setTimeout(resolve, 1000)
       );
     }
 
