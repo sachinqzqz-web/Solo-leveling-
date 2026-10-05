@@ -151,7 +151,7 @@ const t0 = Date.now();
       waitUntil: "domcontentloaded",
       timeout: 30000
     });
-
+    const tResultLoad = Date.now();
     await new Promise(resolve =>
       setTimeout(resolve, 1500)
     );
@@ -454,8 +454,9 @@ if (!selectedLink) {
   total: Date.now() - t0,
   browser: tBrowser - t0,
   search: tSearch - tBrowser,
-  openResult: tResult - tSearch,
-  quality: t720 - tResult,
+  openResultLoad: tResultLoad - tSearch,
+openResultWait: tResult - tResultLoad,
+quality: t720 - tResult,
   server: tServer - t720,
   generate: tGenerate - tServer
 }
