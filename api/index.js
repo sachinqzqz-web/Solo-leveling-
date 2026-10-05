@@ -205,7 +205,7 @@ const t0 = Date.now();
     // =========================
 
     await new Promise(resolve =>
-      setTimeout(resolve, 500)
+      setTimeout(resolve, 700)
     );
     const t720 = Date.now();
     const pagesAfter =
