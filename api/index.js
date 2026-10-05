@@ -63,7 +63,7 @@ const t0 = Date.now();
       "https://new1.hdhub4u.free/search.html",
       {
         waitUntil: "domcontentloaded",
-        timeout: 30000
+        timeout: 20000
       }
     );
     const tSearch = Date.now();
@@ -149,7 +149,7 @@ const t0 = Date.now();
 
     await page.goto(matched.url, {
       waitUntil: "domcontentloaded",
-      timeout: 30000
+      timeout: 20000
     });
     const tResultLoad = Date.now();
     await new Promise(resolve =>
@@ -205,7 +205,7 @@ const t0 = Date.now();
     // =========================
 
     await new Promise(resolve =>
-      setTimeout(resolve, 3000)
+      setTimeout(resolve, 2000)
     );
     const t720 = Date.now();
     const pagesAfter =
@@ -280,7 +280,7 @@ const t0 = Date.now();
     // =========================
 
     await new Promise(resolve =>
-      setTimeout(resolve, 3000)
+      setTimeout(resolve, 2000)
     );
 
     const pagesAfterServer =
@@ -350,7 +350,7 @@ const t0 = Date.now();
     // =========================
 
     await new Promise(resolve =>
-      setTimeout(resolve, 3000)
+      setTimeout(resolve, 2000)
     );
     const tGenerate = Date.now();
     const pagesAfterGenerate =
