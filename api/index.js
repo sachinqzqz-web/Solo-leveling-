@@ -149,7 +149,7 @@ const t0 = Date.now();
 
     await page.goto(matched.url, {
       waitUntil: "domcontentloaded",
-      timeout: 4500
+      timeout: 5000
     });
     const tResultLoad = Date.now();
     await new Promise(resolve =>
