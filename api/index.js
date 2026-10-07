@@ -63,7 +63,7 @@ const t0 = Date.now();
       "https://new1.hdhub4u.free/search.html",
       {
         waitUntil: "domcontentloaded",
-        timeout: 700
+        timeout: 1500
       }
     );
     const tSearch = Date.now();
