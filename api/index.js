@@ -2,7 +2,6 @@ import puppeteer from "puppeteer-core";
 import chromium from "@sparticuz/chromium";
 
 export default async function handler(req, res) {
-const t0 = Date.now();
   let browser;
 
   try {
@@ -52,7 +51,7 @@ const t0 = Date.now();
         height: 720
       }
     });
-    const tBrowser = Date.now();
+
     const page = await browser.newPage();
 
     // =========================
@@ -63,10 +62,10 @@ const t0 = Date.now();
       "https://new1.hdhub4u.free/search.html",
       {
         waitUntil: "domcontentloaded",
-        timeout: 1500
+        timeout: 30000
       }
     );
-    const tSearch = Date.now();
+
     const searchBox = await page.$(
       'input[placeholder*="Search"]'
     );
@@ -94,7 +93,7 @@ const t0 = Date.now();
     await searchButton.click();
 
     await new Promise(resolve =>
-      setTimeout(resolve, 560)
+      setTimeout(resolve, 1500)
     );
 
     // =========================
@@ -149,13 +148,13 @@ const t0 = Date.now();
 
     await page.goto(matched.url, {
       waitUntil: "domcontentloaded",
-      timeout: 5000
+      timeout: 30000
     });
-    const tResultLoad = Date.now();
+
     await new Promise(resolve =>
-      setTimeout(resolve, 400)
+      setTimeout(resolve, 1500)
     );
-      const tResult = Date.now();
+
     // =========================
     // PAGES BEFORE 720P
     // =========================
@@ -205,9 +204,9 @@ const t0 = Date.now();
     // =========================
 
     await new Promise(resolve =>
-      setTimeout(resolve, 500)
+      setTimeout(resolve, 3000)
     );
-    const t720 = Date.now();
+
     const pagesAfter =
       await browser.pages();
 
@@ -223,7 +222,7 @@ const t0 = Date.now();
         newPages[newPages.length - 1];
 
       await new Promise(resolve =>
-        setTimeout(resolve, 600)
+        setTimeout(resolve, 1500)
       );
     }
 
@@ -232,9 +231,9 @@ const t0 = Date.now();
     // =========================
 
     await new Promise(resolve =>
-      setTimeout(resolve, 400)
+      setTimeout(resolve, 2000)
     );
-    const tServer = Date.now();
+
     const pagesBeforeServer =
       await browser.pages();
 
@@ -280,7 +279,7 @@ const t0 = Date.now();
     // =========================
 
     await new Promise(resolve =>
-      setTimeout(resolve, 580)
+      setTimeout(resolve, 3000)
     );
 
     const pagesAfterServer =
@@ -298,7 +297,7 @@ const t0 = Date.now();
         serverNewPages[serverNewPages.length - 1];
 
       await new Promise(resolve =>
-        setTimeout(resolve, 300)
+        setTimeout(resolve, 1500)
       );
     }
 
@@ -350,9 +349,9 @@ const t0 = Date.now();
     // =========================
 
     await new Promise(resolve =>
-      setTimeout(resolve, 700)
+      setTimeout(resolve, 3000)
     );
-    const tGenerate = Date.now();
+
     const pagesAfterGenerate =
       await browser.pages();
 
@@ -368,7 +367,7 @@ const t0 = Date.now();
         generateNewPages[generateNewPages.length - 1];
 
       await new Promise(resolve =>
-        setTimeout(resolve, 800)
+        setTimeout(resolve, 1500)
       );
     }
 
@@ -406,61 +405,36 @@ const t0 = Date.now();
         };
       });
 
-const selectedLink = await generatePage.evaluate(() => {
-  const links = [...document.querySelectorAll("a")];
-
-  const findServer = (pattern) =>
-    links.find(a => {
-      const text = (a.innerText || a.textContent || "")
-        .replace(/\s+/g, " ")
-        .trim();
-
-      return pattern.test(text) && a.href;
-    });
-
-  // Priority: FSLv2 → FSL → 10Gbps
-  const selected =
-    findServer(/Download\s*\[FSLv2\s*Server\]/i) ||
-    findServer(/Download\s*\[FSL\s*Server\]/i) ||
-    findServer(/Download\s*\[Server\s*:\s*10Gbps\]/i);
-
-  if (!selected) {
-    return null;
-  }
-
-  return {
-    server: (selected.innerText || selected.textContent || "")
-      .replace(/\s+/g, " ")
-      .trim(),
-    url: selected.href
-  };
-});
-if (!selectedLink) {
-  return res.status(404).json({
-    ok: false,
-    error: "No supported server available"
-  });
-}
-     // =========================
+    // =========================
     // RESPONSE
     // =========================
 
     return res.status(200).json({
-  ok: true,
-  url: selectedLink.url,
-  server: selectedLink.server,
+      ok: true,
 
-  timing: {
-  total: Date.now() - t0,
-  browser: tBrowser - t0,
-  search: tSearch - tBrowser,
-  openResultLoad: tResultLoad - tSearch,
-openResultWait: tResult - tResultLoad,
-quality: t720 - tResult,
-  server: tServer - t720,
-  generate: tGenerate - tServer
-}
-});
+      movie,
+
+      result: {
+        title: matched.title,
+        url: matched.url
+      },
+
+      flow: {
+        search: true,
+        resultFound: true,
+        quality: "720p",
+        clicked720p: true,
+        newPageOpened: newPages.length > 0,
+        serverClicked: true,
+        serverNewPageOpened:
+          serverNewPages.length > 0,
+        generateClicked: true,
+        generateNewPageOpened:
+          generateNewPages.length > 0
+      },
+
+      page: finalState
+    });
 
   } catch (error) {
     return res.status(500).json({
