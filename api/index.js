@@ -59,28 +59,56 @@ export default async function handler(req, res) {
 
     const html = searchResponse.data;
 
-    return res.status(200).json({
-      ok: true,
-      movie,
+const links = [
+  ...html.matchAll(
+    /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi
+  )
+].map(match => {
+  const title = match[2]
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
-      axios: {
-        status: searchResponse.status,
-        contentType:
-          searchResponse.headers["content-type"] || null,
-        htmlLength:
-          typeof html === "string"
-            ? html.length
-            : 0
-      },
+  let url = null;
 
-      timing: {
-        total: Date.now() - t0,
-        searchRequest: searchTime
-      },
+  try {
+    url = new URL(
+      match[1].replace(/&amp;/g, "&"),
+      "https://abhixtinku.online"
+    ).href;
+  } catch {}
 
-      message:
-        "Axios successfully fetched search.html"
-    });
+  return { title, url };
+}).filter(item => item.title && item.url);
+
+const wanted = movie.toLowerCase();
+const words = wanted.split(/\s+/).filter(Boolean);
+
+let matched = links.find(item =>
+  item.title.toLowerCase().includes(wanted)
+);
+
+if (!matched) {
+  matched = links.find(item => {
+    const title = item.title.toLowerCase();
+    return words.every(word => title.includes(word));
+  });
+}
+
+return res.status(200).json({
+  ok: true,
+  movie,
+  htmlLength: html.length,
+  linksFound: links.length,
+  matched: matched || null,
+  timing: {
+    total: Date.now() - t0,
+    searchRequest: searchTime
+  },
+  message: matched
+    ? "Matching link found in HTML"
+    : "No matching link in initial HTML"
+});
 
   } catch (error) {
     return res.status(500).json({
