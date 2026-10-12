@@ -57,24 +57,38 @@ export default async function handler(req, res) {
     // SEARCH HTML TEST
     // =========================
 
-    const html = searchResponse.data;
+const html = searchResponse.data;
 
-const formInfo = [
-  ...html.matchAll(/<form\b[^>]*>[\s\S]*?<\/form>/gi)
-].map(match => ({
-  html: match[0].slice(0, 3000)
-}));
+const apiUrl = new URL(
+  "https://search.pingora.fyi/collections/post/documents/search"
+);
 
-const scripts = [
-  ...html.matchAll(/<script\b[^>]*src=["']([^"']+)["']/gi)
-].map(match => match[1]);
+apiUrl.searchParams.set("q", movie);
+apiUrl.searchParams.set(
+  "query_by",
+  "post_title,category,stars,director,imdb_id"
+);
+apiUrl.searchParams.set("query_by_weights", "4,2,2,2,4");
+apiUrl.searchParams.set("sort_by", "sort_by_date:desc");
+apiUrl.searchParams.set("limit", "15");
+apiUrl.searchParams.set("highlight_fields", "none");
+apiUrl.searchParams.set("use_cache", "true");
+apiUrl.searchParams.set("page", "1");
+
+const apiResponse = await axios.get(apiUrl.toString(), {
+  timeout: 10000
+});
 
 return res.status(200).json({
   ok: true,
   movie,
-  formsFound: formInfo.length,
-  forms: formInfo,
-  scripts
+  found: apiResponse.data.found,
+  hits: (apiResponse.data.hits || []).slice(0, 3).map(hit => ({
+    title: hit.document?.post_title,
+    thumbnail: hit.document?.post_thumbnail,
+    permalink: hit.document?.permalink
+  })),
+  message: "Search API test successful"
 });
 
   } catch (error) {
