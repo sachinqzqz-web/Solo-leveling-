@@ -59,55 +59,22 @@ export default async function handler(req, res) {
 
     const html = searchResponse.data;
 
-const links = [
-  ...html.matchAll(
-    /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi
-  )
-].map(match => {
-  const title = match[2]
-    .replace(/<[^>]*>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+const formInfo = [
+  ...html.matchAll(/<form\b[^>]*>[\s\S]*?<\/form>/gi)
+].map(match => ({
+  html: match[0].slice(0, 3000)
+}));
 
-  let url = null;
-
-  try {
-    url = new URL(
-      match[1].replace(/&amp;/g, "&"),
-      "https://abhixtinku.online"
-    ).href;
-  } catch {}
-
-  return { title, url };
-}).filter(item => item.title && item.url);
-
-const wanted = movie.toLowerCase();
-const words = wanted.split(/\s+/).filter(Boolean);
-
-let matched = links.find(item =>
-  item.title.toLowerCase().includes(wanted)
-);
-
-if (!matched) {
-  matched = links.find(item => {
-    const title = item.title.toLowerCase();
-    return words.every(word => title.includes(word));
-  });
-}
+const scripts = [
+  ...html.matchAll(/<script\b[^>]*src=["']([^"']+)["']/gi)
+].map(match => match[1]);
 
 return res.status(200).json({
   ok: true,
   movie,
-  htmlLength: html.length,
-  linksFound: links.length,
-  matched: matched || null,
-  timing: {
-    total: Date.now() - t0,
-    searchRequest: searchTime
-  },
-  message: matched
-    ? "Matching link found in HTML"
-    : "No matching link in initial HTML"
+  formsFound: formInfo.length,
+  forms: formInfo,
+  scripts
 });
 
   } catch (error) {
