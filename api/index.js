@@ -1,14 +1,10 @@
+
 import axios from "axios";
 
 export default async function handler(req, res) {
   const t0 = Date.now();
 
   try {
-    // =========================
-    // MOVIE NAME
-    // /Toxic
-    // =========================
-
     const requestUrl = new URL(
       req.url,
       `https://${req.headers.host || "localhost"}`
@@ -20,85 +16,82 @@ export default async function handler(req, res) {
       .replace(/[-_]+/g, " ")
       .trim();
 
-    // =========================
-    // HOME
-    // =========================
-
+    // Health check
     if (!movie) {
       return res.status(200).json({
         ok: true,
-        service: "AnimePlex Axios Test API",
+        service: "AnimePlex Axios API",
         status: "running"
       });
     }
 
-    // =========================
-    // SEARCH PAGE
-    // =========================
-
     const searchStart = Date.now();
 
-    const searchResponse = await axios.get(
-      "https://new1.hdhub4u.free/search.html",
-      {
-        timeout: 10000,
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-          "Accept":
-            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-        }
-      }
+    // Replace this with your own authorized search API.
+    const apiUrl = new URL(
+      process.env.SEARCH_API_URL || ""
     );
 
+    apiUrl.searchParams.set("q", movie);
+    apiUrl.searchParams.set("page", "1");
+
+    const response = await axios.get(apiUrl.toString(), {
+      timeout: 10000,
+      headers: {
+        Accept: "application/json"
+      }
+    });
+
     const searchTime = Date.now() - searchStart;
+    const data = response.data;
 
-    // =========================
-    // SEARCH HTML TEST
-    // =========================
+    if (!data || !Array.isArray(data.hits)) {
+      return res.status(502).json({
+        ok: false,
+        error: "Unexpected search API response",
+        timing: {
+          total: Date.now() - t0,
+          searchRequest: searchTime
+        }
+      });
+    }
 
-const html = searchResponse.data;
+    const words = movie.toLowerCase().split(/\s+/);
 
-const apiUrl = new URL(
-  "https://search.pingora.fyi/collections/post/documents/search"
-);
+    const results = data.hits.map(hit => {
+      const item = hit.document || hit;
 
-apiUrl.searchParams.set("q", movie);
-apiUrl.searchParams.set(
-  "query_by",
-  "post_title,category,stars,director,imdb_id"
-);
-apiUrl.searchParams.set("query_by_weights", "4,2,2,2,4");
-apiUrl.searchParams.set("sort_by", "sort_by_date:desc");
-apiUrl.searchParams.set("limit", "15");
-apiUrl.searchParams.set("highlight_fields", "none");
-apiUrl.searchParams.set("use_cache", "true");
-apiUrl.searchParams.set("page", "1");
+      return {
+        title: item.title || item.post_title || "",
+        thumbnail: item.thumbnail || item.post_thumbnail || null,
+        url: item.url || item.permalink || null
+      };
+    });
 
-const apiResponse = await axios.get(apiUrl.toString(), {
-  timeout: 10000
-});
+    const matched = results.find(item => {
+      const title = item.title.toLowerCase();
+      return title.includes(movie.toLowerCase());
+    }) || results.find(item => {
+      const title = item.title.toLowerCase();
+      return words.every(word => title.includes(word));
+    }) || null;
 
-return res.status(200).json({
-  ok: true,
-  movie,
-  found: apiResponse.data.found,
-  hits: (apiResponse.data.hits || []).slice(0, 3).map(hit => ({
-    title: hit.document?.post_title,
-    thumbnail: hit.document?.post_thumbnail,
-    permalink: hit.document?.permalink
-  })),
-  message: "Search API test successful"
-});
+    return res.status(200).json({
+      ok: true,
+      movie,
+      found: data.found ?? results.length,
+      matched,
+      results: results.slice(0, 5),
+      timing: {
+        total: Date.now() - t0,
+        searchRequest: searchTime
+      }
+    });
 
   } catch (error) {
-    return res.status(500).json({
+    return res.status(502).json({
       ok: false,
-      error:
-        error?.code ||
-        error?.message ||
-        String(error),
-
+      error: error.code || error.message || "Request failed",
       timing: {
         total: Date.now() - t0
       }
