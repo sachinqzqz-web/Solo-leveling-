@@ -34,6 +34,19 @@ export default async function handler(req, res) {
 
     apiUrl.searchParams.set("q", movie);
     apiUrl.searchParams.set("page", "1");
+    apiUrl.searchParams.set(
+  "query_by",
+  "post_title,category,stars,director,imdb_id"
+);
+apiUrl.searchParams.set("query_by_weights", "4,2,2,2,4");
+apiUrl.searchParams.set("sort_by", "sort_by_date:desc");
+apiUrl.searchParams.set("limit", "15");
+apiUrl.searchParams.set("highlight_fields", "none");
+apiUrl.searchParams.set("use_cache", "true");
+apiUrl.searchParams.set(
+  "analytics_tag",
+  new Date().toISOString().split("T")[0]
+);
 
     const response = await axios.get(apiUrl.toString(), {
       timeout: 10000,
